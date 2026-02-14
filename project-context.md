@@ -42,19 +42,22 @@ Turn Filament from a working prototype into a profitable product by building a s
 
 | File | Purpose |
 |------|---------|
-| `src/App.jsx` | Entire frontend — landing page, guided flow, constellation view, background animation |
+| `src/App.jsx` | Entire frontend — landing, guided flow, constellation view, shareable URLs, error handling |
 | `api/constellation.js` | Serverless function with rate limiting, error recovery, and database persistence |
+| `api/shared.js` | Serverless function to fetch shared constellations by share_id |
 | `src/lib/supabase.js` | Supabase client initialization (browser + admin clients) |
 | `supabase-schema.sql` | Database schema definition (run in Supabase SQL Editor) |
-| `vercel.json` | Vercel deployment configuration |
+| `vercel.json` | SPA routing configuration (serves index.html for all routes) |
 | `src/index.css` | Minimal global styles (reset + viewport) |
 | `.env.example` | Environment variables reference |
+| `PRODUCT_FEATURES.md` | Product Engineer session summary |
 | `project-context.md` | This file — project brain, read at start of every session |
 
 ---
 
 ## Architecture Flow
 
+### New Search Flow
 ```
 User's Browser (React SPA)
     ↓ POST /api/constellation (with prompt + searchType)
@@ -67,14 +70,27 @@ Serverless Function parses response with retry
     ↓ Step 3: Save constellation to database (with unique share_id)
     ↓ Step 4: Log search to search_logs (IP, query, timestamp)
     ↓ Step 5: Return constellation + shareId + searchesRemaining
-React renders interactive constellation map
+React renders constellation + updates URL to /c/[shareId]
 ```
 
-**New Infrastructure Layer:**
+### Shared Constellation Flow (NEW)
+```
+User visits /c/abc123
+    ↓ App detects share_id in URL
+    ↓ GET /api/shared?shareId=abc123
+Vercel Serverless Function (api/shared.js)
+    ↓ Query constellations table by share_id
+Supabase returns constellation_data
+    ↓ No AI call, instant load from database
+React renders shared constellation
+```
+
+**Infrastructure Layer:**
 - Supabase PostgreSQL database (2 tables)
 - Rate limiting: 5 searches per 24 hours per IP
 - Error recovery: Retry once if JSON parsing fails
 - Persistence: Every constellation saved with shareable ID
+- Shareable URLs: Every constellation accessible at /c/[shareId]
 
 ---
 
@@ -170,7 +186,7 @@ Rules:
 - Animated loading state with rotating phrases and progress bar
 - Responsive layout (works on desktop and mobile)
 
-### Infrastructure & Backend ✅ NEW
+### Infrastructure & Backend ✅
 - **Supabase PostgreSQL database** with 2 tables (`constellations`, `search_logs`)
 - **Rate limiting** — 5 searches per 24 hours per IP address
 - **Error recovery** — Automatic retry if AI returns malformed JSON
@@ -179,10 +195,22 @@ Rules:
 - **Secure API key handling** — Service role key for backend, anon key for frontend
 - **Response enrichment** — API returns `shareId` and `searchesRemaining` with every constellation
 
+### Product Features ✅ NEW
+- **Shareable constellation URLs** — Every constellation accessible at `/c/[shareId]`
+  - Share button with one-click copy to clipboard
+  - Direct links load instantly from database (no AI call)
+  - URL automatically updates when constellation is generated
+  - SPA routing configured in Vercel
+- **Rate limit communication** — Friendly yellow message when daily limit reached
+- **Searches remaining indicator** — Shows "X searches remaining today" in constellation view
+- **Enhanced error handling** — Distinct styling for rate limits vs other errors
+
 ## Features Not Yet Built ❌
 
 - User accounts / authentication (Supabase Auth)
-- Shareable constellation URLs (database ready, need frontend route + UI)
+- ~~Shareable constellation URLs~~ ✅ **COMPLETE**
+- ~~Searches remaining indicator~~ ✅ **COMPLETE**
+- ~~Rate limit handling in frontend~~ ✅ **COMPLETE**
 - Saved constellations (personal library — requires auth)
 - Deep dive mode (click node → expand into its own constellation)
 - Streaming availability overlay (TMDB/JustWatch)
@@ -190,13 +218,14 @@ Rules:
 - Poster images and movie metadata enrichment
 - Analytics dashboard (data is being logged, needs visualization)
 - Custom domain
-- SEO / server-side rendering / Open Graph meta tags
+- SEO / Open Graph meta tags for rich link previews
 - Payment processing (Stripe)
 - Subscription tier gating
 - Affiliate links
 - Terms of service / privacy policy
 - PWA support
 - Expanded guided questionnaire (currently only covers atmospheric/horror/adventure)
+- View count increment for shared links (needs service role endpoint)
 
 ---
 
@@ -334,14 +363,23 @@ The order follows a logical dependency chain: **build → grow → learn → mon
   - Constellation persistence with unique share_id
   - Analytics logging for every search
   - Environment variables documented
+- [x] **Product Engineer (Session 2)** — Shareable URLs, rate limit UX, searches remaining
+  - Shareable constellation URLs at /c/[shareId]
+  - Share button with clipboard copy functionality
+  - URL detection and shared constellation loading from database
+  - Rate limit error handling with friendly messaging
+  - Searches remaining indicator in constellation view
+  - SPA routing configuration (vercel.json)
+  - Enhanced error handling with status-based styling
 
 ### In Progress
 - [ ] *Nothing currently in progress*
 
 ### Up Next
-- [ ] **Step 2: Product Engineer** — Build shareable constellation URLs (frontend route + share page)
-- [ ] **Step 2: Product Engineer** — Display "searches remaining" indicator in UI
-- [ ] **Step 1: Infrastructure Architect** — Set up Supabase Auth for user accounts (continuation)
+- [ ] **Step 2: Product Engineer** — Add Open Graph meta tags for rich link previews
+- [ ] **Step 2: Product Engineer** — Mobile optimization and touch interactions
+- [ ] **Step 1: Infrastructure Architect** — Set up Supabase Auth for user accounts
+- [ ] **Step 6: Data Quality & Enrichment** — TMDB integration for posters and streaming links
 
 ---
 
@@ -363,13 +401,17 @@ The order follows a logical dependency chain: **build → grow → learn → mon
 ## Open Questions & Unresolved Decisions
 
 - ~~Database choice: Supabase recommended but not confirmed~~ ✅ **RESOLVED: Supabase PostgreSQL active**
+- ~~What URL structure for shareable constellations?~~ ✅ **RESOLVED: Using `/c/:shareId`**
+- ~~Should "searches remaining" be shown after every search?~~ ✅ **RESOLVED: Yes, always shown in constellation view**
 - Custom domain: `filament.movie` mentioned as possibility, not purchased
 - Guided questionnaire currently skews atmospheric/horror/adventure — needs broadening
 - Same search yields different constellations each time — feature or bug? (Non-deterministic by design, but should we cache popular searches?)
 - Mobile constellation view needs design attention
 - Pricing ($4-6/month) is untested
 - No formal timeline beyond phased roadmap
-- **NEW:** Should rate limit be configurable by tier once subscriptions are added?
-- **NEW:** Should we cache popular constellation queries to reduce API costs?
-- **NEW:** What URL structure for shareable constellations? (`/c/:shareId` or `/constellation/:shareId`?)
-- **NEW:** Should "searches remaining" be shown after every search, or only when approaching limit?
+- Should rate limit be configurable by tier once subscriptions are added?
+- Should we cache popular constellation queries to reduce API costs?
+- **NEW:** Should view counts be prominently displayed on shared constellations? ("This constellation has been viewed 247 times")
+- **NEW:** Should we add social share buttons (Twitter, Reddit) with pre-filled text?
+- **NEW:** What should the Open Graph image be for shared links? (Static logo or dynamic constellation render?)
+- **NEW:** Should shared constellations have a "Create your own" CTA to drive new searches?

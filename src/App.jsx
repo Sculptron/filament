@@ -24,16 +24,50 @@ const GUIDE_STEPS = [
 ];
 
 // === AI ENGINE ===
-async function fetchConstellation(prompt) {
+async function fetchConstellation(prompt, searchType = 'title') {
   const res = await fetch("/api/constellation", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, searchType }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`API error: ${res.status} - ${text}`);
+
+    // Parse error response for better error handling
+    let errorData;
+    try {
+      errorData = JSON.parse(text);
+    } catch {
+      errorData = { error: text };
+    }
+
+    // Create error object with status and data
+    const error = new Error(errorData.error || 'API request failed');
+    error.status = res.status;
+    error.data = errorData;
+    throw error;
+  }
+
+  return res.json();
+}
+
+// === FETCH SHARED CONSTELLATION ===
+async function fetchSharedConstellation(shareId) {
+  const res = await fetch(`/api/shared?shareId=${shareId}`);
+
+  if (!res.ok) {
+    const text = await res.text();
+    let errorData;
+    try {
+      errorData = JSON.parse(text);
+    } catch {
+      errorData = { error: text };
+    }
+
+    const error = new Error(errorData.error || 'Failed to load constellation');
+    error.status = res.status;
+    throw error;
   }
 
   return res.json();
@@ -152,12 +186,13 @@ function LoadingView() {
 }
 
 // === CONSTELLATION VIEW ===
-function ConstellationView({ data, onBack }) {
+function ConstellationView({ data, onBack, searchesRemaining }) {
   const [nodes, setNodes] = useState([]);
   const [selected, setSelected] = useState(null);
   const [activeTheme, setActiveTheme] = useState(null);
   const [hovered, setHovered] = useState(null);
   const [links, setLinks] = useState([]);
+  const [copySuccess, setCopySuccess] = useState(false);
   const nodesRef = useRef([]);
   const animRef = useRef(null);
   const dragRef = useRef(null);
@@ -219,11 +254,52 @@ function ConstellationView({ data, onBack }) {
 
   const onNodeClick=(e,movie)=>{e.stopPropagation();if(didDragRef.current)return;setSelected(prev=>prev?.id===movie.id?null:movie);};
 
+  const handleShare = async () => {
+    if (!data.shareId) return;
+
+    const shareUrl = `${window.location.origin}/c/${data.shareId}`;
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2500);
+      } else {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = shareUrl;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2500);
+      }
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
   return (
     <div style={{background:"transparent",minHeight:"100vh",fontFamily:"'Inter',-apple-system,sans-serif",color:"#e0e0e0",position:"relative",zIndex:1}}>
-      <div style={{padding:"16px 20px 6px",display:"flex",alignItems:"center",gap:12}}>
+      <div style={{padding:"16px 20px 6px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <button onClick={onBack} style={{background:"#0a0a0f99",backdropFilter:"blur(8px)",border:"1px solid #333",color:"#888",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",letterSpacing:0.5}}>← Back</button>
         <h1 style={{fontSize:22,fontWeight:200,letterSpacing:5,margin:0,color:"#fff",textTransform:"uppercase"}}>Filament</h1>
+        <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
+          {searchesRemaining !== null && searchesRemaining !== undefined && (
+            <span style={{fontSize:11,color:"#666",letterSpacing:0.5}}>
+              {searchesRemaining} search{searchesRemaining !== 1 ? 'es' : ''} remaining today
+            </span>
+          )}
+          {data.shareId && (
+            <button onClick={handleShare}
+              style={{background:copySuccess?"#4ECDC422":"#0a0a0f99",backdropFilter:"blur(8px)",border:`1px solid ${copySuccess?"#4ECDC4":"#333"}`,color:copySuccess?"#4ECDC4":"#888",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",letterSpacing:0.5,transition:"all 0.3s"}}>
+              {copySuccess ? "✓ Copied!" : "Share"}
+            </button>
+          )}
+        </div>
       </div>
       <div style={{padding:"6px 20px 10px",display:"flex",flexWrap:"wrap",gap:6}}>
         {data.themes.map(t=>(
@@ -386,40 +462,138 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [loadMsg, setLoadMsg] = useState("");
   const [error, setError] = useState(null);
+  const [searchesRemaining, setSearchesRemaining] = useState(null);
+  const [isRateLimited, setIsRateLimited] = useState(false);
 
-  const doSearch = async (prompt) => {
+  // ============================================================
+  // Check URL for shared constellation on mount
+  // ============================================================
+  useEffect(() => {
+    const path = window.location.pathname;
+    const shareMatch = path.match(/^\/c\/([a-z0-9]+)$/i);
+
+    if (shareMatch) {
+      const shareId = shareMatch[1];
+      loadSharedConstellation(shareId);
+    }
+  }, []);
+
+  // ============================================================
+  // Load shared constellation from database
+  // ============================================================
+  const loadSharedConstellation = async (shareId) => {
     setLoading(true);
     setError(null);
-    setLoadMsg("Mapping thematic connections");
     setView("loading");
+
     try {
-      const result = await fetchConstellation(prompt);
+      const result = await fetchSharedConstellation(shareId);
       setData(result);
       setView("constellation");
+      // Update URL without page reload
+      window.history.replaceState({}, '', `/c/${shareId}`);
+    } catch (err) {
+      console.error('Failed to load shared constellation:', err);
+      setError(err.message || 'Failed to load constellation. The link may be invalid.');
+      setView("landing");
+      // Clear invalid share URL
+      window.history.replaceState({}, '', '/');
+    }
+
+    setLoading(false);
+  };
+
+  // ============================================================
+  // Perform new search (title or guided)
+  // ============================================================
+  const doSearch = async (prompt, searchType = 'title') => {
+    setLoading(true);
+    setError(null);
+    setIsRateLimited(false);
+    setLoadMsg("Mapping thematic connections");
+    setView("loading");
+
+    try {
+      const result = await fetchConstellation(prompt, searchType);
+      setData(result);
+      setSearchesRemaining(result.searchesRemaining);
+      setView("constellation");
+
+      // Update URL to share URL if shareId is present
+      if (result.shareId) {
+        window.history.pushState({}, '', `/c/${result.shareId}`);
+      }
     } catch (err) {
       console.error(err);
-      setError("Something went wrong. Please try again.");
+
+      // Handle rate limiting (429)
+      if (err.status === 429) {
+        setIsRateLimited(true);
+        setError(
+          err.data?.error ||
+          "You've used all 5 free searches today. Come back tomorrow for more discoveries!"
+        );
+      } else {
+        setError(err.message || "Something went wrong. Please try again.");
+      }
+
       setView("landing");
     }
+
     setLoading(false);
   };
 
   const handleExplore = (query) => {
-    doSearch(`Analyze the movie/show "${query}" and find 8-12 thematically connected films and TV shows. Focus on deep thematic threads, not surface genre. Include a mix of well-known and hidden gems.`);
+    doSearch(
+      `Analyze the movie/show "${query}" and find 8-12 thematically connected films and TV shows. Focus on deep thematic threads, not surface genre. Include a mix of well-known and hidden gems.`,
+      'title'
+    );
   };
 
   const handleGuide = (vibeDesc) => {
-    doSearch(`A user described what they want to watch tonight through these preferences: ${vibeDesc}. Based on these moods and feelings, recommend 8-12 movies and TV shows that match, connected by thematic threads. Focus on hidden gems and immersive experiences.`);
+    doSearch(
+      `A user described what they want to watch tonight through these preferences: ${vibeDesc}. Based on these moods and feelings, recommend 8-12 movies and TV shows that match, connected by thematic threads. Focus on hidden gems and immersive experiences.`,
+      'guided'
+    );
+  };
+
+  const handleBack = () => {
+    setView("landing");
+    setData(null);
+    setSearchesRemaining(null);
+    // Clear share URL when going back
+    window.history.pushState({}, '', '/');
   };
 
   return (
     <div style={{background:"#0a0a0f",minHeight:"100vh"}}>
       <FilamentBG intensity={view==="constellation"?0.3:0.7} />
       {view==="loading" && <LoadingView />}
-      {view==="constellation" && data && <ConstellationView data={data} onBack={()=>{setView("landing");setData(null);}} />}
+      {view==="constellation" && data && (
+        <ConstellationView
+          data={data}
+          onBack={handleBack}
+          searchesRemaining={searchesRemaining}
+        />
+      )}
       {view==="landing" && <Landing onExplore={handleExplore} onGuide={handleGuide} />}
       {error && view==="landing" && (
-        <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#FF6B6B22",border:"1px solid #FF6B6B44",borderRadius:10,padding:"10px 20px",color:"#FF6B6B",fontSize:13,zIndex:10}}>
+        <div style={{
+          position:"fixed",
+          bottom:24,
+          left:"50%",
+          transform:"translateX(-50%)",
+          background: isRateLimited ? "#FFD93D22" : "#FF6B6B22",
+          border: `1px solid ${isRateLimited ? "#FFD93D44" : "#FF6B6B44"}`,
+          borderRadius:10,
+          padding:"12px 24px",
+          color: isRateLimited ? "#FFD93D" : "#FF6B6B",
+          fontSize:13,
+          zIndex:10,
+          maxWidth:"90%",
+          textAlign:"center",
+          lineHeight:1.5
+        }}>
           {error}
         </div>
       )}
