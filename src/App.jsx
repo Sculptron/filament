@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
+import * as d3 from "d3-force";
 
 const TCOLORS = ["#4ECDC4","#C77DFF","#FF6B6B","#4D96FF","#6BCB77","#FFD93D","#FF8C42","#E0AAFF","#00B4D8","#FF477E"];
 
@@ -218,17 +219,19 @@ function LoadingView() {
 // === CONSTELLATION VIEW ===
 function ConstellationView({ data, onBack, searchesRemaining }) {
   const [nodes, setNodes] = useState([]);
+  const [links, setLinks] = useState([]);
   const [selected, setSelected] = useState(null);
   const [activeTheme, setActiveTheme] = useState(null);
   const [hovered, setHovered] = useState(null);
-  const [links, setLinks] = useState([]);
   const [copySuccess, setCopySuccess] = useState(false);
-  const nodesRef = useRef([]);
-  const animRef = useRef(null);
+  const [dims, setDims] = useState({w:800,h:520});
+  const [showOnboard, setShowOnboard] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
+  const [hint, setHint] = useState(true);
+  const simRef = useRef(null);
   const dragRef = useRef(null);
   const dragStartRef = useRef(null);
-  const offRef = useRef({x:0,y:0});
-  const [dims, setDims] = useState({w:800,h:520});
+  const didDragRef = useRef(false);
 
   const themeMap = {};
   const themeColors = {};
@@ -237,72 +240,100 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
   data.themes.forEach((t,i) => {
     themeMap[t.id]=t.name;
     themeColors[t.id]=TCOLORS[i%TCOLORS.length];
-    themeTypes[t.id]=t.type;         // may be undefined for v1 data
-    themeExpl[t.id]=t.explanation;   // may be undefined for v1 data
+    themeTypes[t.id]=t.type;
+    themeExpl[t.id]=t.explanation;
   });
 
   useEffect(() => {
-    const w=Math.min(window.innerWidth-32,900), h=520;
-    setDims({w,h});
-    const cx=w/2, cy=h/2;
-    const init = data.movies.map((m,i) => {
-      const a=(i/data.movies.length)*Math.PI*2+(Math.random()-.5)*.3;
-      const r = i===0 ? 0 : 90+Math.random()*140;
-      return {...m, x:cx+Math.cos(a)*r, y:cy+Math.sin(a)*r, vx:0, vy:0, radius:16+m.themes.length*3};
-    });
+    const w = Math.min(window.innerWidth - 32, 920);
+    const h = Math.min(window.innerHeight - 140, 560);
+    setDims({ w, h });
 
-    const lnks=[];
-    for(let i=0;i<data.movies.length;i++) for(let j=i+1;j<data.movies.length;j++){
-      const shared=data.movies[i].themes.filter(t=>data.movies[j].themes.includes(t));
-      if(shared.length>=1) lnks.push({source:data.movies[i].id,target:data.movies[j].id,themes:shared,strength:shared.length});
-    }
-    setLinks(lnks);
-    nodesRef.current=init;
-    setNodes([...init]);
-  },[data]);
+    const simNodes = data.movies.map((m, i) => ({ ...m, index: i, radius: 17 + m.themes.length * 3 }));
+    const simLinks = [];
+    for (let i = 0; i < data.movies.length; i++)
+      for (let j = i + 1; j < data.movies.length; j++) {
+        const shared = data.movies[i].themes.filter(t => data.movies[j].themes.includes(t));
+        if (shared.length >= 1) simLinks.push({ source: i, target: j, themes: shared, strength: shared.length });
+      }
 
-  useEffect(()=>{
-    const tick=()=>{
-      const ns=nodesRef.current,cx=dims.w/2,cy=dims.h/2;
-      for(let n of ns){n.vx*=0.85;n.vy*=0.85;const dx=cx-n.x,dy=cy-n.y,d=Math.sqrt(dx*dx+dy*dy)||1;n.vx+=dx/d*0.12;n.vy+=dy/d*0.12;}
-      for(let i=0;i<ns.length;i++) for(let j=i+1;j<ns.length;j++){const dx=ns[j].x-ns[i].x,dy=ns[j].y-ns[i].y,d=Math.sqrt(dx*dx+dy*dy)||1,mn=ns[i].radius+ns[j].radius+55;if(d<mn){const f=(mn-d)/d*0.3;ns[i].vx-=dx*f;ns[i].vy-=dy*f;ns[j].vx+=dx*f;ns[j].vy+=dy*f;}}
-      for(let l of links){const a=ns.find(n=>n.id===l.source),b=ns.find(n=>n.id===l.target);if(!a||!b)continue;const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1,t=110+(4-l.strength)*25,f=(d-t)/d*0.008;a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f;}
-      for(let n of ns){if(dragRef.current?.id===n.id)continue;n.x+=n.vx;n.y+=n.vy;n.x=Math.max(n.radius,Math.min(dims.w-n.radius,n.x));n.y=Math.max(n.radius,Math.min(dims.h-n.radius,n.y));}
-      setNodes([...ns]);animRef.current=requestAnimationFrame(tick);
+    const sim = d3.forceSimulation(simNodes)
+      .force("center", d3.forceCenter(w / 2, h / 2).strength(0.05))
+      .force("charge", d3.forceManyBody().strength(-180))
+      .force("collision", d3.forceCollide().radius(d => d.radius + 28))
+      .force("link", d3.forceLink(simLinks).distance(d => 140 - d.strength * 15).strength(d => 0.2 + d.strength * 0.05))
+      .force("x", d3.forceX(w / 2).strength(0.03))
+      .force("y", d3.forceY(h / 2).strength(0.03))
+      .alphaDecay(0.015)
+      .on("tick", () => {
+        simNodes.forEach(n => {
+          n.x = Math.max(n.radius + 4, Math.min(w - n.radius - 4, n.x));
+          n.y = Math.max(n.radius + 4, Math.min(h - n.radius - 4, n.y));
+        });
+        setNodes([...simNodes]);
+        setLinks(simLinks.map(l => ({
+          ...l,
+          sx: l.source.x, sy: l.source.y,
+          tx: l.target.x, ty: l.target.y,
+          sourceId: l.source.id, targetId: l.target.id,
+        })));
+      });
+
+    simRef.current = sim;
+    return () => sim.stop();
+  }, [data]);
+
+  const isLinked = nid => selected && links.some(l => (l.sourceId === selected.id && l.targetId === nid) || (l.targetId === selected.id && l.sourceId === nid));
+  const inTheme = n => !activeTheme || n.themes.includes(activeTheme);
+  const nOp = n => { if (activeTheme && !inTheme(n)) return 0.08; if (selected && n.id !== selected.id && !isLinked(n.id)) return 0.15; return 1; };
+  const lOp = l => { if (activeTheme && !l.themes.includes(activeTheme)) return 0.02; if (selected && l.sourceId !== selected.id && l.targetId !== selected.id) return 0.03; return 0.5; };
+  const lColor = l => { const t = activeTheme && l.themes.includes(activeTheme) ? activeTheme : l.themes[0]; return themeColors[t] || "#666"; };
+
+  const onPD = (e, n) => {
+    e.stopPropagation(); e.preventDefault();
+    dragRef.current = n;
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    didDragRef.current = false;
+    const sim = simRef.current;
+    if (sim) { sim.alphaTarget(0.1).restart(); }
+    const sn = sim?.nodes().find(x => x.id === n.id);
+    const moveFn = ev => {
+      if (!dragRef.current || !sn) return;
+      const dx = ev.clientX - dragStartRef.current.x, dy = ev.clientY - dragStartRef.current.y;
+      if (Math.abs(dx) + Math.abs(dy) > 5) didDragRef.current = true;
+      const svg = document.querySelector('#fil-svg');
+      if (!svg) return;
+      const r = svg.getBoundingClientRect();
+      sn.fx = ev.clientX - r.left;
+      sn.fy = ev.clientY - r.top;
     };
-    if(links.length>0){animRef.current=requestAnimationFrame(tick);}
-    return()=>cancelAnimationFrame(animRef.current);
-  },[dims,links]);
-
-  const gp=useCallback(id=>{const n=nodesRef.current.find(n=>n.id===id);return n?{x:n.x,y:n.y}:{x:0,y:0};},[]);
-  const isLinked=nid=>selected&&links.some(l=>(l.source===selected.id&&l.target===nid)||(l.target===selected.id&&l.source===nid));
-  const inTheme=n=>!activeTheme||n.themes.includes(activeTheme);
-  const nOp=n=>{if(activeTheme&&!inTheme(n))return 0.08;if(selected&&n.id!==selected.id&&!isLinked(n.id))return 0.2;return 1;};
-  const lOp=l=>{if(activeTheme&&!l.themes.includes(activeTheme))return 0.02;if(selected&&l.source!==selected.id&&l.target!==selected.id)return 0.04;return 0.45;};
-  const lColor=l=>{const t=activeTheme&&l.themes.includes(activeTheme)?activeTheme:l.themes[0];return themeColors[t]||"#666";};
-
-  const didDragRef = useRef(false);
-
-  const onPD=(e,n)=>{e.stopPropagation();e.preventDefault();dragRef.current={id:n.id};dragStartRef.current={x:e.clientX,y:e.clientY};didDragRef.current=false;const r=e.currentTarget.closest('svg').getBoundingClientRect();offRef.current={x:e.clientX-r.left-n.x,y:e.clientY-r.top-n.y};
-    const moveFn=ev=>{if(!dragRef.current)return;const dx=ev.clientX-dragStartRef.current.x,dy=ev.clientY-dragStartRef.current.y;if(Math.abs(dx)+Math.abs(dy)>5)didDragRef.current=true;const svg=document.querySelector('#fil-svg');if(!svg)return;const r=svg.getBoundingClientRect(),nd=nodesRef.current.find(x=>x.id===dragRef.current.id);if(nd){nd.x=ev.clientX-r.left-offRef.current.x;nd.y=ev.clientY-r.top-offRef.current.y;nd.vx=0;nd.vy=0;}};
-    const upFn=()=>{dragRef.current=null;dragStartRef.current=null;window.removeEventListener('pointermove',moveFn);window.removeEventListener('pointerup',upFn);};
-    window.addEventListener('pointermove',moveFn);window.addEventListener('pointerup',upFn);
+    const upFn = () => {
+      if (sn) { sn.fx = null; sn.fy = null; }
+      if (sim) sim.alphaTarget(0);
+      dragRef.current = null;
+      window.removeEventListener('pointermove', moveFn);
+      window.removeEventListener('pointerup', upFn);
+    };
+    window.addEventListener('pointermove', moveFn);
+    window.addEventListener('pointerup', upFn);
   };
 
-  const onNodeClick=(e,movie)=>{e.stopPropagation();if(didDragRef.current)return;setSelected(prev=>prev?.id===movie.id?null:movie);};
+  const onNodeClick = (e, movie) => {
+    e.stopPropagation();
+    if (didDragRef.current) return;
+    setSelected(prev => prev?.id === movie.id ? null : movie);
+    setHint(false);
+  };
 
   const handleShare = async () => {
     if (!data.shareId) return;
-
     const shareUrl = `${window.location.origin}/c/${data.shareId}`;
-
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(shareUrl);
         setCopySuccess(true);
         setTimeout(() => setCopySuccess(false), 2500);
       } else {
-        // Fallback for older browsers
         const textarea = document.createElement('textarea');
         textarea.value = shareUrl;
         textarea.style.position = 'fixed';
@@ -319,8 +350,35 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
     }
   };
 
+  // === ONBOARDING OVERLAY ===
+  if (showOnboard) {
+    const tc = data.themes.length, mc = data.movies.length;
+    return (
+      <div style={{minHeight:"100vh",fontFamily:"'Inter',-apple-system,sans-serif",color:"#e0e0e0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",zIndex:1}}>
+        <div style={{display:"flex",gap:8,marginBottom:32}}>
+          {data.themes.map((th,i) => (
+            <div key={th.id} style={{width:10,height:10,borderRadius:"50%",background:TCOLORS[i%TCOLORS.length],opacity:0.8}}/>
+          ))}
+        </div>
+        <h2 style={{fontSize:28,fontWeight:300,color:"#fff",margin:"0 0 16px",textAlign:"center",lineHeight:1.4,maxWidth:480}}>
+          We found {mc} films connected by {tc} invisible threads
+        </h2>
+        <p style={{fontSize:14,color:"#555",margin:"0 0 40px",textAlign:"center",maxWidth:420,lineHeight:1.7,fontWeight:300}}>
+          Shared obsessions, cinematic lineages, and feelings that echo across decades. Click any film to see why it belongs here.
+        </p>
+        <button onClick={()=>setShowOnboard(false)}
+          style={{background:"#C77DFF18",border:"1px solid #C77DFF44",borderRadius:10,padding:"12px 36px",color:"#C77DFF",fontSize:14,cursor:"pointer",letterSpacing:1,fontFamily:"inherit",transition:"all 0.3s"}}
+          onMouseEnter={e=>{e.currentTarget.style.background="#C77DFF28";e.currentTarget.style.borderColor="#C77DFF66";}}
+          onMouseLeave={e=>{e.currentTarget.style.background="#C77DFF18";e.currentTarget.style.borderColor="#C77DFF44";}}>
+          Start exploring
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{background:"transparent",minHeight:"100vh",fontFamily:"'Inter',-apple-system,sans-serif",color:"#e0e0e0",position:"relative",zIndex:1}}>
+      {/* Header */}
       <div style={{padding:"16px 20px 6px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <button onClick={onBack} style={{background:"#0a0a0f99",backdropFilter:"blur(8px)",border:"1px solid #333",color:"#888",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",letterSpacing:0.5}}>← Back</button>
         <h1 style={{fontSize:22,fontWeight:200,letterSpacing:5,margin:0,color:"#fff",textTransform:"uppercase"}}>Filament</h1>
@@ -336,21 +394,36 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
               {copySuccess ? "✓ Copied!" : "Share"}
             </button>
           )}
+          <button onClick={()=>setShowHelp(h=>!h)}
+            style={{background:showHelp?"#C77DFF22":"#0a0a0f99",backdropFilter:"blur(8px)",border:`1px solid ${showHelp?"#C77DFF44":"#333"}`,color:showHelp?"#C77DFF":"#666",borderRadius:"50%",width:30,height:30,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"inherit"}}>
+            ?
+          </button>
         </div>
       </div>
-      <div style={{padding:"6px 20px 10px",display:"flex",flexWrap:"wrap",gap:6}}>
-        {data.themes.map(t=>{
-          const active=activeTheme===t.id;
-          const c=themeColors[t.id]||"#666";
-          const icon=TYPE_ICONS[themeTypes[t.id]]||"◆";
-          return (
-            <button key={t.id} onClick={()=>setActiveTheme(active?null:t.id)}
-              style={{background:active?c+"22":"#0a0a0f88",backdropFilter:"blur(6px)",border:`1px solid ${active?c:"#333"}`,color:active?c:"#666",borderRadius:20,padding:"3px 12px",fontSize:10,cursor:"pointer",transition:"all 0.3s",letterSpacing:0.3,fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>
-              <span style={{opacity:active?1:0.5}}>{icon}</span>
-              {t.name}
-            </button>
-          );
-        })}
+      {/* Help card */}
+      {showHelp && (
+        <div style={{margin:"0 20px 8px",background:"#0e0e18cc",backdropFilter:"blur(12px)",border:"1px solid #333",borderRadius:10,padding:"12px 16px",maxWidth:580}}>
+          <p style={{fontSize:12,color:"#888",margin:"0 0 6px",lineHeight:1.6}}>Each circle is a film or show. The colored lines between them are <em>threads</em> — shared feelings, craft techniques, creative philosophies, and cinematic lineages that connect stories at a deeper level than genre.</p>
+          <p style={{fontSize:12,color:"#666",margin:0,lineHeight:1.6}}>Click any film to see why it belongs here. Use the thread pills above the map to isolate specific connections. Drag nodes to rearrange.</p>
+        </div>
+      )}
+      {/* Thread filters */}
+      <div style={{padding:"6px 20px 4px"}}>
+        <p style={{fontSize:10,color:"#555",margin:"0 0 6px",letterSpacing:1,textTransform:"uppercase"}}>What connects them</p>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {data.themes.map(t=>{
+            const active=activeTheme===t.id;
+            const c=themeColors[t.id]||"#666";
+            const icon=TYPE_ICONS[themeTypes[t.id]]||"◆";
+            return (
+              <button key={t.id} onClick={()=>setActiveTheme(active?null:t.id)}
+                style={{background:active?c+"22":"#0a0a0f88",backdropFilter:"blur(6px)",border:`1px solid ${active?c:"#333"}`,color:active?c:"#666",borderRadius:20,padding:"3px 11px",fontSize:10,cursor:"pointer",transition:"all 0.3s",letterSpacing:0.3,fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>
+                <span style={{opacity:active?1:0.5}}>{icon}</span>
+                {t.name}
+              </button>
+            );
+          })}
+        </div>
       </div>
       {activeTheme && themeExpl[activeTheme] && (
         <div style={{padding:"0 20px 10px"}}>
@@ -360,11 +433,13 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
           </div>
         </div>
       )}
+      {/* Map + Detail Panel */}
       <div style={{position:"relative"}}>
         <svg id="fil-svg" width={dims.w} height={dims.h} style={{cursor:"grab",display:"block",margin:"0 auto"}} onClick={()=>setSelected(null)}>
           <defs>{data.themes.map(t=>(<radialGradient key={t.id} id={`g-${t.id}`}><stop offset="0%" stopColor={themeColors[t.id]||"#666"} stopOpacity="0.8"/><stop offset="100%" stopColor={themeColors[t.id]||"#666"} stopOpacity="0"/></radialGradient>))}</defs>
-          {links.map((l,i)=>{const a=gp(l.source),b=gp(l.target);return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={lColor(l)} strokeWidth={l.strength*0.7} opacity={lOp(l)} style={{transition:"opacity 0.4s"}}/>;
-          })}
+          {links.map((l,i)=>(
+            <line key={i} x1={l.sx} y1={l.sy} x2={l.tx} y2={l.ty} stroke={lColor(l)} strokeWidth={l.strength*0.7} opacity={lOp(l)} style={{transition:"opacity 0.4s"}}/>
+          ))}
           {nodes.map(n=>{
             const op=nOp(n),isSel=selected?.id===n.id,isH=hovered===n.id;
             const pt=activeTheme&&n.themes.includes(activeTheme)?activeTheme:n.themes[0];
@@ -377,42 +452,53 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
                 <circle cx={n.x} cy={n.y} r={n.radius} fill={isSel?c+"33":"#0e0e18"} stroke={c} strokeWidth={isSel||isFirst?2:1}/>
                 <circle cx={n.x} cy={n.y} r={3} fill={c} opacity={0.9}/>
                 <text x={n.x} y={n.y+n.radius+14} textAnchor="middle" fill={isSel||isH?"#fff":"#888"} fontSize={9.5} fontWeight={isSel?500:300} letterSpacing={0.4} style={{pointerEvents:"none"}}>{n.title}</text>
+                <text x={n.x} y={n.y+n.radius+25} textAnchor="middle" fill="#444" fontSize={8.5} style={{pointerEvents:"none"}}>{n.year}</text>
               </g>
             );
           })}
         </svg>
+        {hint && !selected && (
+          <p style={{textAlign:"center",fontSize:11,color:"#333",margin:"6px 0 0",letterSpacing:0.5,pointerEvents:"none"}}>click a movie to explore · drag to rearrange</p>
+        )}
         {selected && (
           <div style={{position:"absolute",right:12,top:0,width:280,background:"#0e0e18dd",backdropFilter:"blur(20px)",border:"1px solid #222",borderRadius:12,padding:20,animation:"fdIn 0.3s ease",maxHeight:dims.h,overflowY:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"start"}}>
               <div><h2 style={{fontSize:16,fontWeight:400,margin:0,color:"#fff",lineHeight:1.3}}>{selected.title}</h2><p style={{fontSize:11,color:"#555",margin:"3px 0 0"}}>{selected.year} · {selected.type}</p></div>
-              <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:16,padding:4}}>×</button>
+              <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:18,padding:4,lineHeight:1}}>×</button>
             </div>
-            <p style={{fontSize:12,color:"#999",lineHeight:1.6,margin:"12px 0"}}>{selected.desc}</p>
-            <div style={{background:"#151520",borderRadius:8,padding:12,marginBottom:selected.why_this_exists?8:14}}>
+            {/* The Vibe */}
+            <div style={{background:"#151520",borderRadius:8,padding:12,margin:"12px 0 8px"}}>
               <p style={{fontSize:10,color:"#555",margin:"0 0 3px",textTransform:"uppercase",letterSpacing:1}}>The Vibe</p>
               <p style={{fontSize:12,color:"#bbb",margin:0,lineHeight:1.5,fontStyle:"italic"}}>{selected.vibe}</p>
             </div>
+            {/* Why This Exists */}
             {selected.why_this_exists && (
-              <div style={{background:"#151520",borderRadius:8,padding:12,marginBottom:14}}>
+              <div style={{background:"#151520",borderRadius:8,padding:12,marginBottom:8}}>
                 <p style={{fontSize:10,color:"#555",margin:"0 0 3px",textTransform:"uppercase",letterSpacing:1}}>Why This Exists</p>
                 <p style={{fontSize:12,color:"#bbb",margin:0,lineHeight:1.5,fontStyle:"italic"}}>{selected.why_this_exists}</p>
               </div>
             )}
-            <div><p style={{fontSize:10,color:"#555",margin:"0 0 6px",textTransform:"uppercase",letterSpacing:1}}>Threads</p>
+            {/* Description */}
+            <p style={{fontSize:12,color:"#999",lineHeight:1.6,margin:"0 0 12px"}}>{selected.desc}</p>
+            {/* Connected through */}
+            <div style={{marginBottom:12}}>
+              <p style={{fontSize:10,color:"#555",margin:"0 0 6px",textTransform:"uppercase",letterSpacing:1}}>Connected through</p>
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
                 {selected.themes.map(t=>{
                   const c=themeColors[t]||"#666";
                   const icon=TYPE_ICONS[themeTypes[t]]||"◆";
-                  return (<span key={t} onClick={e=>{e.stopPropagation();setActiveTheme(activeTheme===t?null:t);}} style={{fontSize:10,color:c,border:`1px solid ${c}44`,borderRadius:12,padding:"2px 9px",cursor:"pointer",background:activeTheme===t?c+"22":"transparent",display:"inline-flex",alignItems:"center",gap:3}}>{icon} {themeMap[t]||t}</span>);
+                  return (<span key={t} onClick={e=>{e.stopPropagation();setActiveTheme(activeTheme===t?null:t);}} style={{fontSize:10,color:c,border:`1px solid ${c}44`,borderRadius:12,padding:"2px 8px",cursor:"pointer",background:activeTheme===t?c+"22":"transparent",display:"inline-flex",alignItems:"center",gap:3,transition:"all 0.2s"}}>{icon} {themeMap[t]||t}</span>);
                 })}
               </div>
             </div>
-            <div style={{marginTop:12}}>
-              <p style={{fontSize:10,color:"#555",margin:"0 0 6px",textTransform:"uppercase",letterSpacing:1}}>Connected To</p>
-              {links.filter(l=>(l.source===selected.id||l.target===selected.id)).map((l,i)=>{
-                const oid=l.source===selected.id?l.target:l.source,o=data.movies.find(m=>m.id===oid);
+            {/* Also connected to */}
+            <div>
+              <p style={{fontSize:10,color:"#555",margin:"0 0 6px",textTransform:"uppercase",letterSpacing:1}}>Also connected to</p>
+              {links.filter(l=>(l.sourceId===selected.id||l.targetId===selected.id)).map((l,i)=>{
+                const oid=l.sourceId===selected.id?l.targetId:l.sourceId;
+                const o=data.movies.find(m=>m.id===oid);
                 if(!o) return null;
-                return (<div key={i} onClick={e=>{e.stopPropagation();setSelected(o);}} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 0",cursor:"pointer",borderBottom:"1px solid #1a1a2e"}}>
+                return (<div key={i} onClick={e=>{e.stopPropagation();setSelected(o);}} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 0",cursor:"pointer",borderBottom:"1px solid #151525"}}>
                   <span style={{fontSize:11,color:"#ccc"}}>{o.title}</span>
                   <span style={{fontSize:9,color:"#444",marginLeft:"auto"}}>{l.strength} thread{l.strength>1?"s":""}</span>
                 </div>);
@@ -457,7 +543,6 @@ function Landing({ onExplore, onGuide }) {
           {GUIDE.map((_,i)=>(<div key={i} style={{width:28,height:3,borderRadius:2,background:i<=guideStep?"#C77DFF":"#222",transition:"background 0.4s"}}/>))}
         </div>
         <div style={{opacity:fadeIn?1:0,transform:fadeIn?"translateY(0)":"translateY(12px)",transition:"all 0.3s ease",textAlign:"center",maxWidth:520}}>
-          <p style={{fontSize:11,color:"#555",margin:"0 0 4px",letterSpacing:1.5,textTransform:"uppercase"}}>{step.dim}</p>
           <p style={{fontSize:14,color:"#555",margin:"0 0 8px",letterSpacing:1,textTransform:"uppercase"}}>Step {guideStep+1} of {GUIDE.length}</p>
           <h2 style={{fontSize:26,fontWeight:300,color:"#fff",margin:"0 0 36px",lineHeight:1.4}}>{step.q}</h2>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
