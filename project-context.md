@@ -354,6 +354,18 @@ The order follows a logical dependency chain: **build → grow → learn → mon
   - ConstellationView updated: type icons on theme pills, explanation panel on active theme, why_this_exists in detail panel
   - Backward compatible: old shared constellation URLs (v1 format) render without crashing
 
+- [x] **Product Engineer (Step 3, Session 2)** — UI/UX overhaul
+  - Replaced manual physics simulation with `d3-force` (`forceCenter`, `forceManyBody`, `forceCollide`, `forceLink`, `forceX/Y`, `alphaDecay(0.015)`)
+  - Drag updated to d3 pattern: `alphaTarget(0.1).restart()` on start, `fx/fy` pin during drag, release on pointer up
+  - Onboarding overlay: "We found X films connected by Y invisible threads" with theme swatches and "Start exploring" button
+  - Help button (`?`) in header toggles compact help card explaining threads and interactions
+  - "What connects them" label above thread filter pills
+  - Bottom hint text "click a movie to explore · drag to rearrange" — disappears after first node click
+  - Year displayed under each movie title in constellation nodes
+  - Detail panel reordered: Vibe → Why This Exists → Description → Connected through → Also connected to
+  - Renamed "Threads" → "Connected through", "Connected To" → "Also connected to"
+  - Removed dimension label (Mode of engagement / Emotional arc / Craft sensibility) from questionnaire steps
+
 ### In Progress
 - [ ] *Nothing currently in progress*
 
@@ -386,7 +398,7 @@ The order follows a logical dependency chain: **build → grow → learn → mon
 - ~~What URL structure for shareable constellations?~~ ✅ **RESOLVED: Using `/c/:shareId`**
 - ~~Should "searches remaining" be shown after every search?~~ ✅ **RESOLVED: Yes, always shown in constellation view**
 - Custom domain: `filament.movie` mentioned as possibility, not purchased
-- Guided questionnaire currently skews atmospheric/horror/adventure — needs broadening
+- ~~Guided questionnaire currently skews atmospheric/horror/adventure — needs broadening~~ ✅ **RESOLVED: New questions cover mode of engagement, emotional arc, and craft sensibility**
 - Same search yields different constellations each time — feature or bug? (Non-deterministic by design, but should we cache popular searches?)
 - Mobile constellation view needs design attention
 - Pricing ($4-6/month) is untested
