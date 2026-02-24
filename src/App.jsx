@@ -2,25 +2,28 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 const TCOLORS = ["#4ECDC4","#C77DFF","#FF6B6B","#4D96FF","#6BCB77","#FFD93D","#FF8C42","#E0AAFF","#00B4D8","#FF477E"];
 
-const GUIDE_STEPS = [
-  { q:"What are you drawn to tonight?", opts:[
-    { label:"Ancient things stirring beneath the surface", icon:"🌊", tags:"folklore, mythology, ancient evil, deep history" },
-    { label:"The vast and unknowable", icon:"✦", tags:"cosmic, existential, alien, transcendent, incomprehensible" },
-    { label:"Human endurance against impossible odds", icon:"🔥", tags:"survival, resilience, grit, endurance, against all odds" },
-    { label:"Creeping dread that never lets go", icon:"🌑", tags:"slow-burn horror, psychological tension, atmospheric dread, unease" },
+const TYPE_ICONS = { thematic:"◆", craft:"◎", philosophy:"◈", lineage:"↝" };
+const TYPE_LABELS = { thematic:"shared feeling", craft:"craft signature", philosophy:"creative philosophy", lineage:"cinematic lineage" };
+
+const GUIDE = [
+  { q:"How do you want to spend tonight?", dim:"Mode of engagement", opts:[
+    { label:"I want to disappear into something — forget my name for two hours", icon:"🌊" },
+    { label:"I want something to chew on — layers I'll still be unpacking tomorrow", icon:"🧩" },
+    { label:"I want to feel like I'm watching someone's real life unfold", icon:"🕯" },
+    { label:"I want something so visually overwhelming I can't look away", icon:"✦" },
   ]},
-  { q:"How do you want to feel when the credits roll?", opts:[
-    { label:"Haunted — still thinking about it at 3 AM", icon:"👁", tags:"lingering unease, thought-provoking, disturbing, unforgettable" },
-    { label:"Exhilarated — like I survived something", icon:"⚡", tags:"adrenaline, thrilling, intense, heart-pounding, cathartic" },
-    { label:"Awed — small in the best possible way", icon:"∞", tags:"wonder, sublime, vast, meditative, beautiful" },
-    { label:"Unsettled — the world feels different now", icon:"◐", tags:"perspective-shifting, eerie, reality-bending, uncanny" },
+  { q:"What do you want the experience to do to you?", dim:"Emotional arc", opts:[
+    { label:"Build slowly, then break me — I want the ending to rearrange something inside me", icon:"🔥" },
+    { label:"Keep me on the knife's edge — I want my body to remember watching this", icon:"⚡" },
+    { label:"Make me laugh at something I shouldn't, then make me feel it", icon:"◗" },
+    { label:"Leave me with more questions than I started with", icon:"🌀" },
   ]},
-  { q:"Pick a setting that calls to you.", opts:[
-    { label:"Frozen seas and wooden ships", icon:"⛵", tags:"maritime, arctic, age of sail, naval, ocean expedition" },
-    { label:"Dense forest where the map stops", icon:"🌲", tags:"wilderness, forest, remote, primal nature, uncharted" },
-    { label:"Deep space or deep ocean", icon:"🪐", tags:"space, underwater, deep sea, isolation, void, abyss" },
-    { label:"Somewhere that shouldn't exist", icon:"◇", tags:"surreal, liminal, otherworldly, dream-like, impossible architecture" },
-  ]}
+  { q:"What kind of filmmaking is calling to you?", dim:"Craft sensibility", opts:[
+    { label:"Silence and patience — every frame given room to breathe", icon:"◇" },
+    { label:"The soundtrack tells the story — music that crawls under your skin", icon:"♫" },
+    { label:"Raw and real — shaky hands, lived-in spaces, performances that feel stolen", icon:"🎞" },
+    { label:"Every frame deliberate — obsessive precision, nothing accidental", icon:"⬡" },
+  ]},
 ];
 
 // === AI ENGINE ===
@@ -73,6 +76,33 @@ async function fetchSharedConstellation(shareId) {
   return res.json();
 }
 
+
+// === GUIDE PROMPT BUILDER ===
+function buildGuidePrompt(sels) {
+  const dims = ["mode of engagement", "emotional arc", "craft sensibility"];
+  const descs = [
+    [
+      "films that demand total immersion — worldbuilding so complete you forget yourself",
+      "films that demand active engagement — puzzle-box narratives with layers to unpack",
+      "intimate, performance-driven stories that feel overheard rather than constructed",
+      "visually overwhelming sensory cinema where the medium itself is the experience",
+    ],
+    [
+      "a devastating slow-burn crescendo — patient construction with a gut-punch payoff",
+      "sustained visceral intensity — embodied tension where suspense becomes physical",
+      "tonal complexity that blends dark humor with genuine devastation",
+      "an existential experience that shifts perception and lingers because it changed something fundamental",
+    ],
+    [
+      "meditative pacing with silence and patience — wide shots, ambient soundscapes, a camera that observes",
+      "musical architecture where the score is inseparable from emotion",
+      "naturalistic vérité filmmaking — handheld, improvised, lived-in",
+      "formalist auteur precision — symmetrical compositions, controlled palette, nothing accidental",
+    ],
+  ];
+  const parts = sels.map((idx, step) => `For ${dims[step]}: ${descs[step][idx]}`);
+  return `A user described what they want to watch tonight:\n${parts.join("\n")}\n\nBased on these preferences, recommend 8-12 films and TV shows connected by thematic, craft signature, creative philosophy, and cinematic lineage threads. Include hidden gems alongside recognized works.`;
+}
 
 // === GEOMETRIC BACKGROUND ===
 function FilamentBG({ intensity = 1 }) {
@@ -202,7 +232,14 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
 
   const themeMap = {};
   const themeColors = {};
-  data.themes.forEach((t,i) => { themeMap[t.id]=t.name; themeColors[t.id]=TCOLORS[i%TCOLORS.length]; });
+  const themeTypes = {};
+  const themeExpl = {};
+  data.themes.forEach((t,i) => {
+    themeMap[t.id]=t.name;
+    themeColors[t.id]=TCOLORS[i%TCOLORS.length];
+    themeTypes[t.id]=t.type;         // may be undefined for v1 data
+    themeExpl[t.id]=t.explanation;   // may be undefined for v1 data
+  });
 
   useEffect(() => {
     const w=Math.min(window.innerWidth-32,900), h=520;
@@ -302,14 +339,27 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
         </div>
       </div>
       <div style={{padding:"6px 20px 10px",display:"flex",flexWrap:"wrap",gap:6}}>
-        {data.themes.map(t=>(
-          <button key={t.id} onClick={()=>setActiveTheme(activeTheme===t.id?null:t.id)}
-            style={{background:activeTheme===t.id?(themeColors[t.id]||"#666")+"22":"#0a0a0f88",backdropFilter:"blur(6px)",border:`1px solid ${activeTheme===t.id?themeColors[t.id]||"#666":"#333"}`,color:activeTheme===t.id?themeColors[t.id]||"#666":"#666",borderRadius:20,padding:"3px 12px",fontSize:10,cursor:"pointer",transition:"all 0.3s",letterSpacing:0.5}}>
-            <span style={{display:"inline-block",width:5,height:5,borderRadius:3,background:themeColors[t.id]||"#666",marginRight:5,opacity:activeTheme===t.id?1:0.4}}/>
-            {t.name}
-          </button>
-        ))}
+        {data.themes.map(t=>{
+          const active=activeTheme===t.id;
+          const c=themeColors[t.id]||"#666";
+          const icon=TYPE_ICONS[themeTypes[t.id]]||"◆";
+          return (
+            <button key={t.id} onClick={()=>setActiveTheme(active?null:t.id)}
+              style={{background:active?c+"22":"#0a0a0f88",backdropFilter:"blur(6px)",border:`1px solid ${active?c:"#333"}`,color:active?c:"#666",borderRadius:20,padding:"3px 12px",fontSize:10,cursor:"pointer",transition:"all 0.3s",letterSpacing:0.3,fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>
+              <span style={{opacity:active?1:0.5}}>{icon}</span>
+              {t.name}
+            </button>
+          );
+        })}
       </div>
+      {activeTheme && themeExpl[activeTheme] && (
+        <div style={{padding:"0 20px 10px"}}>
+          <div style={{background:"#0e0e1888",backdropFilter:"blur(8px)",border:`1px solid ${themeColors[activeTheme]||"#333"}33`,borderRadius:8,padding:"8px 12px",maxWidth:600}}>
+            <span style={{fontSize:10,color:themeColors[activeTheme]||"#666",fontWeight:500,letterSpacing:0.5,textTransform:"uppercase"}}>{TYPE_LABELS[themeTypes[activeTheme]]||"thread"}</span>
+            <p style={{fontSize:12,color:"#999",margin:"3px 0 0",lineHeight:1.5}}>{themeExpl[activeTheme]}</p>
+          </div>
+        </div>
+      )}
       <div style={{position:"relative"}}>
         <svg id="fil-svg" width={dims.w} height={dims.h} style={{cursor:"grab",display:"block",margin:"0 auto"}} onClick={()=>setSelected(null)}>
           <defs>{data.themes.map(t=>(<radialGradient key={t.id} id={`g-${t.id}`}><stop offset="0%" stopColor={themeColors[t.id]||"#666"} stopOpacity="0.8"/><stop offset="100%" stopColor={themeColors[t.id]||"#666"} stopOpacity="0"/></radialGradient>))}</defs>
@@ -338,13 +388,23 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
               <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:16,padding:4}}>×</button>
             </div>
             <p style={{fontSize:12,color:"#999",lineHeight:1.6,margin:"12px 0"}}>{selected.desc}</p>
-            <div style={{background:"#151520",borderRadius:8,padding:12,marginBottom:14}}>
+            <div style={{background:"#151520",borderRadius:8,padding:12,marginBottom:selected.why_this_exists?8:14}}>
               <p style={{fontSize:10,color:"#555",margin:"0 0 3px",textTransform:"uppercase",letterSpacing:1}}>The Vibe</p>
               <p style={{fontSize:12,color:"#bbb",margin:0,lineHeight:1.5,fontStyle:"italic"}}>{selected.vibe}</p>
             </div>
+            {selected.why_this_exists && (
+              <div style={{background:"#151520",borderRadius:8,padding:12,marginBottom:14}}>
+                <p style={{fontSize:10,color:"#555",margin:"0 0 3px",textTransform:"uppercase",letterSpacing:1}}>Why This Exists</p>
+                <p style={{fontSize:12,color:"#bbb",margin:0,lineHeight:1.5,fontStyle:"italic"}}>{selected.why_this_exists}</p>
+              </div>
+            )}
             <div><p style={{fontSize:10,color:"#555",margin:"0 0 6px",textTransform:"uppercase",letterSpacing:1}}>Threads</p>
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {selected.themes.map(t=>(<span key={t} onClick={e=>{e.stopPropagation();setActiveTheme(activeTheme===t?null:t);}} style={{fontSize:10,color:themeColors[t]||"#666",border:`1px solid ${(themeColors[t]||"#666")}44`,borderRadius:12,padding:"2px 9px",cursor:"pointer",background:activeTheme===t?(themeColors[t]||"#666")+"22":"transparent"}}>{themeMap[t]||t}</span>))}
+                {selected.themes.map(t=>{
+                  const c=themeColors[t]||"#666";
+                  const icon=TYPE_ICONS[themeTypes[t]]||"◆";
+                  return (<span key={t} onClick={e=>{e.stopPropagation();setActiveTheme(activeTheme===t?null:t);}} style={{fontSize:10,color:c,border:`1px solid ${c}44`,borderRadius:12,padding:"2px 9px",cursor:"pointer",background:activeTheme===t?c+"22":"transparent",display:"inline-flex",alignItems:"center",gap:3}}>{icon} {themeMap[t]||t}</span>);
+                })}
               </div>
             </div>
             <div style={{marginTop:12}}>
@@ -375,34 +435,35 @@ function Landing({ onExplore, onGuide }) {
 
   useEffect(()=>{setFadeIn(true);},[guideStep]);
 
-  const handleGuideSelect = (opt) => {
-    const newSel = [...guideSel, opt.tags];
+  const handleGuideSelect = (optIdx) => {
+    const newSel = [...guideSel, optIdx];
     setGuideSel(newSel);
-    if (guideStep < GUIDE_STEPS.length-1) {
+    if (guideStep < GUIDE.length - 1) {
       setFadeIn(false);
-      setTimeout(() => setGuideStep(guideStep+1), 300);
+      setTimeout(() => setGuideStep(guideStep + 1), 300);
     } else {
-      onGuide(newSel.join(". "));
+      onGuide(newSel);
     }
   };
 
   if (guideStep >= 0) {
-    const step = GUIDE_STEPS[guideStep];
+    const step = GUIDE[guideStep];
     return (
       <div style={{minHeight:"100vh",fontFamily:"'Inter',-apple-system,sans-serif",color:"#e0e0e0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",zIndex:1}}>
         <div style={{position:"absolute",top:20,left:20}}>
-          <button onClick={()=>{setGuideStep(-1);setGuideSel([]);}} style={{background:"#0a0a0f99",backdropFilter:"blur(8px)",border:"1px solid #333",color:"#666",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer"}}>← Back</button>
+          <button onClick={()=>{setGuideStep(guideStep===0?-1:guideStep-1);setGuideSel(guideSel.slice(0,-1));}} style={{background:"#0a0a0f99",backdropFilter:"blur(8px)",border:"1px solid #333",color:"#666",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer"}}>← Back</button>
         </div>
         <div style={{position:"absolute",top:24,right:24,display:"flex",gap:6}}>
-          {GUIDE_STEPS.map((_,i)=>(<div key={i} style={{width:28,height:3,borderRadius:2,background:i<=guideStep?"#C77DFF":"#222",transition:"background 0.4s"}}/>))}
+          {GUIDE.map((_,i)=>(<div key={i} style={{width:28,height:3,borderRadius:2,background:i<=guideStep?"#C77DFF":"#222",transition:"background 0.4s"}}/>))}
         </div>
         <div style={{opacity:fadeIn?1:0,transform:fadeIn?"translateY(0)":"translateY(12px)",transition:"all 0.3s ease",textAlign:"center",maxWidth:520}}>
-          <p style={{fontSize:14,color:"#555",margin:"0 0 8px",letterSpacing:1,textTransform:"uppercase"}}>Step {guideStep+1} of {GUIDE_STEPS.length}</p>
+          <p style={{fontSize:11,color:"#555",margin:"0 0 4px",letterSpacing:1.5,textTransform:"uppercase"}}>{step.dim}</p>
+          <p style={{fontSize:14,color:"#555",margin:"0 0 8px",letterSpacing:1,textTransform:"uppercase"}}>Step {guideStep+1} of {GUIDE.length}</p>
           <h2 style={{fontSize:26,fontWeight:300,color:"#fff",margin:"0 0 36px",lineHeight:1.4}}>{step.q}</h2>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
             {step.opts.map((opt,i)=>(
-              <button key={i} onClick={()=>handleGuideSelect(opt)}
-                style={{background:"#0e0e18cc",backdropFilter:"blur(12px)",border:"1px solid #222",borderRadius:14,padding:"20px 18px",cursor:"pointer",textAlign:"left",transition:"all 0.25s",display:"flex",flexDirection:"column",gap:8}}
+              <button key={i} onClick={()=>handleGuideSelect(i)}
+                style={{background:"#0e0e18cc",backdropFilter:"blur(12px)",border:"1px solid #222",borderRadius:14,padding:"20px 18px",cursor:"pointer",textAlign:"left",transition:"all 0.25s",display:"flex",flexDirection:"column",gap:8,fontFamily:"inherit"}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor="#C77DFF55";e.currentTarget.style.background="#15151fdd";}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor="#222";e.currentTarget.style.background="#0e0e18cc";}}>
                 <span style={{fontSize:22}}>{opt.icon}</span>
@@ -410,6 +471,7 @@ function Landing({ onExplore, onGuide }) {
               </button>
             ))}
           </div>
+          {guideStep === 0 && <p style={{fontSize:12,color:"#444",margin:"24px 0 0",letterSpacing:0.5}}>3 questions. No genres. Just vibes.</p>}
         </div>
       </div>
     );
@@ -545,16 +607,13 @@ export default function App() {
 
   const handleExplore = (query) => {
     doSearch(
-      `Analyze the movie/show "${query}" and find 8-12 thematically connected films and TV shows. Focus on deep thematic threads, not surface genre. Include a mix of well-known and hidden gems.`,
+      `Analyze the movie/show "${query}" and find 8-12 thematically connected films and TV shows. Focus on deep thematic, craft, philosophical, and lineage threads — not surface genre. Include a mix of well-known films and hidden gems. The searched title should be the first entry.`,
       'title'
     );
   };
 
-  const handleGuide = (vibeDesc) => {
-    doSearch(
-      `A user described what they want to watch tonight through these preferences: ${vibeDesc}. Based on these moods and feelings, recommend 8-12 movies and TV shows that match, connected by thematic threads. Focus on hidden gems and immersive experiences.`,
-      'guided'
-    );
+  const handleGuide = (selIndices) => {
+    doSearch(buildGuidePrompt(selIndices), 'guided');
   };
 
   const handleBack = () => {

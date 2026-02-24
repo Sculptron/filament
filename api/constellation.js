@@ -18,12 +18,23 @@ const supabaseAdmin = createClient(
 // ============================================================
 // SYSTEM PROMPT FOR CLAUDE
 // ============================================================
-const SYSTEM_PROMPT = `You are a cinematic thematic analyst. You identify deep thematic connections between films and TV shows — not surface-level genre tags, but the underlying feelings, mythologies, settings, and emotional textures that connect stories.
+const SYSTEM_PROMPT = `You are a cinematic thematic analyst with encyclopedic film knowledge and the soul of a passionate cinephile. You identify deep connections between films and TV shows across four dimensions.
 
-When given a movie/show title OR a mood description, return ONLY valid JSON (no markdown, no backticks, no preamble) in this exact format:
+THE FOUR THREAD TYPES:
+1. THEMATIC — Shared feelings, ideas, mythologies, subject matter. Example: "The cost of empire," "Grief wearing a mask"
+2. CRAFT SIGNATURE — The audiovisual fingerprint: color palette, camera behavior, sound design, editing rhythm. Example: "Nocturnal digital grain," "Silence as texture"
+3. CREATIVE PHILOSOPHY — The directorial intelligence: why these choices were made, how filmmakers think about storytelling. Example: "Cinema as spiritual witness," "Internal states made physical"
+4. CINEMATIC LINEAGE — Ancestry and descendancy: what a film responds to, descends from, or spawned. Example: "Domestic space as horror," "Restraint as devastating force"
+
+Return ONLY valid JSON (no markdown, no backticks, no preamble):
 {
   "themes": [
-    { "id": "theme_key", "name": "Human Readable Theme Name" }
+    {
+      "id": "snake_case_key",
+      "name": "Human Readable Thread Name",
+      "type": "thematic | craft | philosophy | lineage",
+      "explanation": "One sentence explaining what this thread means and why these works share it."
+    }
   ],
   "movies": [
     {
@@ -32,21 +43,24 @@ When given a movie/show title OR a mood description, return ONLY valid JSON (no 
       "year": 2020,
       "type": "Film or TV",
       "themes": ["theme_key1", "theme_key2"],
-      "desc": "One paragraph description.",
-      "vibe": "One evocative sentence pitch — the kind of thing a film-obsessed friend would say to convince you to watch it."
+      "desc": "One rich paragraph about the film.",
+      "vibe": "One evocative sentence pitch — like a film-obsessed friend convincing you to watch it at 2 AM.",
+      "why_this_exists": "One sentence about the creative impulse behind this film — what drove it into existence."
     }
   ]
 }
 
-Rules:
-- Generate 4-6 unique thematic threads (not standard genres — think "expedition into the unknowable" not "sci-fi")
-- Return 8-12 movies/shows total. The first entry should be the searched title if one was given.
-- Each movie should connect to 2-4 themes
-- Include a mix of well-known and hidden gems
-- The "vibe" should be punchy, evocative, and personal — like a recommendation from someone who truly gets cinema
-- Make every theme connect at least 2 movies
-- Only return real movies and shows that actually exist with correct years
-- theme ids should be lowercase with underscores`;
+RULES:
+- Generate 5-7 threads: 2-3 thematic, 1-2 craft signature, 1-2 creative philosophy, 1 cinematic lineage
+- Return 8-12 movies/shows. If a specific title was searched, it should be first.
+- Each movie connects to 2-4 threads
+- Mix well-known films with hidden gems that cinephiles treasure
+- "vibe" should be punchy, personal, evocative — NOT a plot summary
+- "why_this_exists" illuminates the creative impulse, not the plot
+- Every thread must connect at least 2 movies
+- Only return REAL movies/shows with CORRECT years
+- Thread names should be poetic and specific, never generic genre labels
+- theme ids must be lowercase with underscores`;
 
 // ============================================================
 // HELPER: Get client IP address
@@ -98,32 +112,51 @@ async function checkRateLimit(ipAddress) {
 // HELPER: Call Claude API with retry logic
 // ============================================================
 async function callClaudeAPI(prompt, retryCount = 0) {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: prompt }]
-    })
-  });
+  // Stage 1: Network request
+  let response;
+  try {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 8000,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+  } catch (netErr) {
+    throw new Error("Network error reaching AI service: " + netErr.message);
+  }
 
-  const data = await response.json();
+  // Stage 2: Parse HTTP response body
+  let data;
+  try {
+    data = await response.json();
+  } catch (jsonErr) {
+    throw new Error(`Failed to parse API response (status ${response.status})`);
+  }
 
+  // Stage 3: Check for API-level errors
   if (!response.ok) {
-    throw new Error(`Anthropic API error: ${JSON.stringify(data)}`);
+    const msg = data?.error?.message || data?.error?.type || JSON.stringify(data).slice(0, 200);
+    throw new Error(`API error (${response.status}): ${msg}`);
+  }
+
+  // Stage 4: Validate response shape
+  if (!data.content || !Array.isArray(data.content)) {
+    throw new Error("Unexpected response shape from AI service");
   }
 
   // Extract and clean the text content
   const text = data.content.map(item => item.text || "").join("");
   const clean = text.replace(/```json|```/g, "").trim();
 
-  // Try to parse JSON
+  // Stage 5: Parse constellation JSON (with retry)
   try {
     const result = JSON.parse(clean);
 
@@ -142,7 +175,7 @@ async function callClaudeAPI(prompt, retryCount = 0) {
 
     // Second attempt also failed
     console.error('JSON parse failed after retry:', parseError.message);
-    console.error('Raw response:', clean);
+    console.error('Raw response start:', clean.slice(0, 200));
     return {
       success: false,
       error: 'The AI returned an invalid response. Please try again.'

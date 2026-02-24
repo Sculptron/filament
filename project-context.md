@@ -133,43 +133,14 @@ Tracks every search for rate limiting and analytics.
 
 ---
 
-## AI System Prompt (Current)
+## AI System Prompt (Current — v2)
 
-```
-You are a cinematic thematic analyst. You identify deep thematic connections
-between films and TV shows — not surface-level genre tags, but the underlying
-feelings, mythologies, settings, and emotional textures that connect stories.
+Four thread types: thematic, craft signature, creative philosophy, cinematic lineage.
+Themes now include `type` and `explanation` fields.
+Movies now include `why_this_exists` field.
+max_tokens: 8000. Rules generate 5-7 threads with type breakdown.
 
-When given a movie/show title OR a mood description, return ONLY valid JSON
-(no markdown, no backticks, no preamble) in this exact format:
-{
-  "themes": [
-    { "id": "theme_key", "name": "Human Readable Theme Name" }
-  ],
-  "movies": [
-    {
-      "id": 1,
-      "title": "Movie Title",
-      "year": 2020,
-      "type": "Film or TV",
-      "themes": ["theme_key1", "theme_key2"],
-      "desc": "One paragraph description.",
-      "vibe": "One evocative sentence pitch — the kind of thing a film-obsessed
-              friend would say to convince you to watch it."
-    }
-  ]
-}
-
-Rules:
-- Generate 4-6 unique thematic threads (not standard genres)
-- Return 8-12 movies/shows total
-- Each movie should connect to 2-4 themes
-- Include a mix of well-known and hidden gems
-- The "vibe" should be punchy, evocative, and personal
-- Make every theme connect at least 2 movies
-- Only return real movies and shows that actually exist with correct years
-- theme ids should be lowercase with underscores
-```
+See `api/constellation.js` for the full SYSTEM_PROMPT constant.
 
 ---
 
@@ -372,14 +343,25 @@ The order follows a logical dependency chain: **build → grow → learn → mon
   - SPA routing configuration (vercel.json)
   - Enhanced error handling with status-based styling
 
+- [x] **Product Engineer (Step 3, Session 1)** — Backend + core logic v2 upgrade
+  - System prompt upgraded to v2: four thread types (thematic, craft, philosophy, lineage)
+  - Themes now include `type` and `explanation` fields
+  - Movies now include `why_this_exists` field
+  - max_tokens increased 4000 → 8000
+  - Granular error handling in callClaudeAPI: network, response parse, API error, JSON parse
+  - Guided questionnaire replaced: 3 new questions (mode of engagement, emotional arc, craft sensibility)
+  - `buildGuidePrompt()` compiles selections into natural-language prose descriptions
+  - ConstellationView updated: type icons on theme pills, explanation panel on active theme, why_this_exists in detail panel
+  - Backward compatible: old shared constellation URLs (v1 format) render without crashing
+
 ### In Progress
 - [ ] *Nothing currently in progress*
 
 ### Up Next
-- [ ] **Step 2: Product Engineer** — Add Open Graph meta tags for rich link previews
-- [ ] **Step 2: Product Engineer** — Mobile optimization and touch interactions
-- [ ] **Step 1: Infrastructure Architect** — Set up Supabase Auth for user accounts
-- [ ] **Step 6: Data Quality & Enrichment** — TMDB integration for posters and streaming links
+- [ ] **Product Engineer** — Add Open Graph meta tags for rich link previews
+- [ ] **Product Engineer** — Mobile optimization and touch interactions
+- [ ] **Infrastructure Architect** — Set up Supabase Auth for user accounts
+- [ ] **Data Quality & Enrichment** — TMDB integration for posters and streaming links
 
 ---
 
