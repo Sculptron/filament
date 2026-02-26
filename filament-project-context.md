@@ -485,7 +485,7 @@ This step was inserted on February 25, 2026 after real-world user testing reveal
 - Analytics tool: Plausible vs PostHog not decided — decision needed at Step 4
 - No formal timeline beyond phased roadmap
 - Literature version: build after cinema reaches profitability
-- v2 max_tokens (8000): monitor API cost impact after deployment, tune down if responses complete at lower counts
+- max_tokens is now 4500 — monitor token usage in Vercel function logs (input/output logged per request); tune further if 95th percentile output is consistently under 3000 tokens
 
 ---
 
@@ -505,7 +505,8 @@ This step was inserted on February 25, 2026 after real-world user testing reveal
 - [x] **v2 Prototype Review** — Reviewed and approved by Chief Strategist (Feb 18, 2026)
 - [x] **Performance Audit** — Technical Diagnostician identified latency sources and ranked interventions (Feb 25, 2026)
 - [x] **Performance Decisions** — CEO approved four pre-launch interventions; streaming and caching deferred to post-launch; Haiku model swap rejected to preserve quality (Feb 25, 2026)
-- [x] **Step 2.5: Pre-Launch Performance Fixes** — Cold start prevention (`/api/health.js` + Vercel cron every 5 min), non-blocking Supabase writes (response sent before DB saves), loading screen shows searched title + time expectation message, system prompt updated to exactly 8 movies with one-per-thread anchoring rule (Feb 25, 2026)
+- [x] **Step 2.5: Pre-Launch Performance Fixes** — Loading screen shows searched title + time expectation message, system prompt updated to exactly 8 movies (Feb 25, 2026). Note: cold start cron reverted (Hobby plan limitation); non-blocking DB writes reverted (Vercel terminates function after res.json()).
+- [x] **Response Time Regression Fix** — Reworded constraining prompt rule to a simple heuristic, reduced max_tokens 8000→4500, added conciseness instruction (2-3 sentence desc cap, 3500 token budget), added token usage logging to Vercel function logs (Feb 25, 2026)
 
 ### In Progress
 - [ ] *Nothing currently in progress*

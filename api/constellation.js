@@ -52,16 +52,16 @@ Return ONLY valid JSON (no markdown, no backticks, no preamble):
 
 RULES:
 - Generate 5-7 threads: 2-3 thematic, 1-2 craft signature, 1-2 creative philosophy, 1 cinematic lineage
-- Return exactly 8 movies/shows.
-- Aim for one film strongly anchored to each thematic thread, avoiding redundancy. The searched title (if provided) should always be included as the first entry.
-- Each movie connects to 2-4 threads
+- Return exactly 8 movies/shows. The searched title (if given) should be first.
+- Each film should connect to 2-3 threads. Avoid picking two films that serve the same role in the constellation.
 - Mix well-known films with hidden gems that cinephiles treasure
 - "vibe" should be punchy, personal, evocative — NOT a plot summary
 - "why_this_exists" illuminates the creative impulse, not the plot
 - Every thread must connect at least 2 movies
 - Only return REAL movies/shows with CORRECT years
 - Thread names should be poetic and specific, never generic genre labels
-- theme ids must be lowercase with underscores`;
+- theme ids must be lowercase with underscores
+- Be concise: "desc" should be 2-3 sentences maximum. "explanation" should be one short sentence. Keep total response under 3500 tokens.`;
 
 // ============================================================
 // HELPER: Get client IP address
@@ -125,7 +125,7 @@ async function callClaudeAPI(prompt, retryCount = 0) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 8000,
+        max_tokens: 4500,
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: prompt }]
       })
@@ -152,6 +152,8 @@ async function callClaudeAPI(prompt, retryCount = 0) {
   if (!data.content || !Array.isArray(data.content)) {
     throw new Error("Unexpected response shape from AI service");
   }
+
+  console.log(`Tokens used — input: ${data.usage?.input_tokens}, output: ${data.usage?.output_tokens}`);
 
   // Extract and clean the text content
   const text = data.content.map(item => item.text || "").join("");
