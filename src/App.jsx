@@ -169,7 +169,7 @@ const LOADING_PHRASES = [
   "Almost there — assembling your constellation",
 ];
 
-function LoadingView() {
+function LoadingView({ searchQuery, isGuided }) {
   const [idx, setIdx] = useState(0);
   const [fade, setFade] = useState(true);
   const [dots, setDots] = useState("");
@@ -192,14 +192,31 @@ function LoadingView() {
 
   return (
     <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',-apple-system,sans-serif", position:"relative", zIndex:1 }}>
-      <div style={{ textAlign:"center", maxWidth: 360 }}>
+      <div style={{ textAlign:"center", maxWidth: 400 }}>
         <div style={{ width:48, height:48, border:"2px solid #222", borderTopColor:"#C77DFF", borderRadius:"50%", animation:"spin 1s linear infinite", margin:"0 auto 28px" }} />
+        {isGuided ? (
+          <p style={{ color:"#777", fontSize:14, fontWeight:300, letterSpacing:0.5, margin:"0 0 20px" }}>
+            Mapping your constellation...
+          </p>
+        ) : searchQuery ? (
+          <div style={{ margin:"0 0 20px" }}>
+            <p style={{ color:"#666", fontSize:13, fontWeight:300, margin:"0 0 6px", letterSpacing:0.3 }}>
+              Mapping the constellation around
+            </p>
+            <p style={{ color:"#ddd", fontSize:22, fontWeight:200, margin:0, letterSpacing:1 }}>
+              {searchQuery}
+            </p>
+          </div>
+        ) : null}
         <p style={{
           color:"#999", fontSize:14, fontWeight:300, letterSpacing:0.5, minHeight:24,
           opacity: fade ? 1 : 0, transform: fade ? "translateY(0)" : "translateY(6px)",
           transition: "all 0.3s ease",
         }}>
           {LOADING_PHRASES[idx]}{dots}
+        </p>
+        <p style={{ color:"#555", fontSize:12, fontWeight:300, margin:"12px 0 0", letterSpacing:0.3 }}>
+          This usually takes 15–20 seconds — we're doing the deep work.
         </p>
         <div style={{ display:"flex", justifyContent:"center", gap:4, marginTop:20 }}>
           {LOADING_PHRASES.slice(0, 8).map((_, i) => (
@@ -611,6 +628,8 @@ export default function App() {
   const [error, setError] = useState(null);
   const [searchesRemaining, setSearchesRemaining] = useState(null);
   const [isRateLimited, setIsRateLimited] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isGuided, setIsGuided] = useState(false);
 
   // ============================================================
   // Check URL for shared constellation on mount
@@ -691,6 +710,8 @@ export default function App() {
   };
 
   const handleExplore = (query) => {
+    setSearchQuery(query);
+    setIsGuided(false);
     doSearch(
       `Analyze the movie/show "${query}" and find 8-12 thematically connected films and TV shows. Focus on deep thematic, craft, philosophical, and lineage threads — not surface genre. Include a mix of well-known films and hidden gems. The searched title should be the first entry.`,
       'title'
@@ -698,6 +719,8 @@ export default function App() {
   };
 
   const handleGuide = (selIndices) => {
+    setSearchQuery('');
+    setIsGuided(true);
     doSearch(buildGuidePrompt(selIndices), 'guided');
   };
 
@@ -712,7 +735,7 @@ export default function App() {
   return (
     <div style={{background:"#0a0a0f",minHeight:"100vh"}}>
       <FilamentBG intensity={view==="constellation"?0.3:0.7} />
-      {view==="loading" && <LoadingView />}
+      {view==="loading" && <LoadingView searchQuery={searchQuery} isGuided={isGuided} />}
       {view==="constellation" && data && (
         <ConstellationView
           data={data}
