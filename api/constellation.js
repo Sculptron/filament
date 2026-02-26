@@ -228,57 +228,52 @@ export default async function handler(req, res) {
     const constellation = apiResult.data;
 
     // ============================================================
-    // STEP 3: Generate share ID (must be before response)
+    // STEP 3: Save constellation to database
     // ============================================================
     const shareId = generateShareId();
 
+    const { data: savedConstellation, error: saveError } = await supabaseAdmin
+      .from('constellations')
+      .insert({
+        search_query: prompt,
+        search_type: searchType,
+        constellation_data: constellation,
+        share_id: shareId
+      })
+      .select()
+      .single();
+
+    if (saveError) {
+      console.error('Failed to save constellation:', saveError);
+      // Don't fail the request if save fails, just log it
+    }
+
     // ============================================================
-    // STEP 4: Send response immediately — user doesn't wait for DB
+    // STEP 4: Log the search (for analytics and rate limiting)
     // ============================================================
-    res.status(200).json({
+    const { error: logError } = await supabaseAdmin
+      .from('search_logs')
+      .insert({
+        ip_address: ipAddress,
+        session_id: req.headers['x-vercel-id'] || null,
+        search_type: searchType,
+        query_text: prompt,
+        constellation_id: savedConstellation?.id || null
+      });
+
+    if (logError) {
+      console.error('Failed to log search:', logError);
+      // Don't fail the request if logging fails
+    }
+
+    // ============================================================
+    // STEP 5: Return constellation with metadata
+    // ============================================================
+    return res.status(200).json({
       ...constellation,
       shareId: shareId,
       searchesRemaining: 5 - (rateLimitCheck.count + 1)
     });
-
-    // ============================================================
-    // STEP 5: Save to Supabase after response (non-blocking)
-    // A failed save never affects the user experience
-    // ============================================================
-    (async () => {
-      try {
-        const { data: savedConstellation, error: saveError } = await supabaseAdmin
-          .from('constellations')
-          .insert({
-            search_query: prompt,
-            search_type: searchType,
-            constellation_data: constellation,
-            share_id: shareId
-          })
-          .select()
-          .single();
-
-        if (saveError) {
-          console.error('Failed to save constellation:', saveError);
-        }
-
-        const { error: logError } = await supabaseAdmin
-          .from('search_logs')
-          .insert({
-            ip_address: ipAddress,
-            session_id: req.headers['x-vercel-id'] || null,
-            search_type: searchType,
-            query_text: prompt,
-            constellation_id: savedConstellation?.id || null
-          });
-
-        if (logError) {
-          console.error('Failed to log search:', logError);
-        }
-      } catch (err) {
-        console.error('Background Supabase write error:', err);
-      }
-    })();
 
   } catch (error) {
     console.error("Server error:", error);
