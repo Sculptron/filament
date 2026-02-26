@@ -216,7 +216,7 @@ function LoadingView({ searchQuery, isGuided }) {
           {LOADING_PHRASES[idx]}{dots}
         </p>
         <p style={{ color:"#555", fontSize:12, fontWeight:300, margin:"12px 0 0", letterSpacing:0.3 }}>
-          This usually takes 15–20 seconds — we're doing the deep work.
+          This can take up to a minute, we're doing the deep work.
         </p>
         <div style={{ display:"flex", justifyContent:"center", gap:4, marginTop:20 }}>
           {LOADING_PHRASES.slice(0, 8).map((_, i) => (
