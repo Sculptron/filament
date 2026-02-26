@@ -411,7 +411,7 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
   return (
     <div style={{background:"transparent",minHeight:"100vh",fontFamily:"'Inter',-apple-system,sans-serif",color:"#e0e0e0",position:"relative",zIndex:1}}>
       {/* Header */}
-      <div style={{padding:"16px 20px 6px",paddingTop:isMobile?"env(safe-area-inset-top)":undefined,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+      <div style={{padding:"16px 20px 6px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <button onClick={onBack} style={{background:"#0a0a0f99",backdropFilter:"blur(8px)",border:"1px solid #333",color:"#888",borderRadius:8,padding:isMobile?"8px 16px":"6px 14px",fontSize:12,cursor:"pointer",letterSpacing:0.5}}>← Back</button>
         <h1 style={{fontSize:22,fontWeight:200,letterSpacing:5,margin:0,color:"#fff",textTransform:"uppercase"}}>Filament</h1>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
@@ -499,7 +499,7 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
           })}
         </svg>
         {hint && !selected && (
-          <p style={{textAlign:"center",fontSize:11,color:"#333",margin:"6px 0 0",letterSpacing:0.5,pointerEvents:"none"}}>click a movie to explore · drag to rearrange</p>
+          <p style={{textAlign:"center",fontSize:11,color:"#333",margin:"6px 0 0",letterSpacing:0.5,pointerEvents:"none"}}>{isMobile ? "tap a movie to explore" : "click a movie to explore · drag to rearrange"}</p>
         )}
         {selected && (isMobile ? (
           // MOBILE: Bottom sheet
