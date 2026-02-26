@@ -45,10 +45,9 @@ Turn Filament from a working prototype into a profitable product by building a s
 |------|---------|
 | `src/App.jsx` | Entire frontend — landing page, guided flow, constellation view, background animation |
 | `api/constellation.js` | Serverless function — proxies to Claude API, saves to Supabase, enforces rate limiting |
-| `api/health.js` | Health check endpoint — used by Vercel cron to keep the function warm *(to be created in next session)* |
 | `lib/supabaseClient.js` | Supabase client utility for database connections |
 | `schema.sql` | Database schema — constellations table, search_logs table, RLS policies, generate_share_id function |
-| `vercel.json` | Vercel deployment configuration — includes cron job config *(to be updated in next session)* |
+| `vercel.json` | Vercel deployment configuration — SPA rewrites only (cron job blocked by Hobby plan) |
 | `src/index.css` | Minimal global styles (reset + viewport) |
 | `PROJECT_CONTEXT.md` | This file — project brain, read at start of every session |
 
@@ -68,12 +67,12 @@ Anthropic Claude API
 Serverless Function:
     ↕ Parses response (with error recovery for malformed JSON)
     ↕ Generates share_id
-    ↕ Returns clean JSON + share_id to frontend IMMEDIATELY
-    ↕ Then saves constellation + logs search to Supabase (non-blocking, after response)
+    ↕ Saves constellation + logs search to Supabase (blocking — must complete before response)
+    ↕ Returns clean JSON + share_id to frontend
 React renders interactive constellation map
 ```
 
-**Note:** The Supabase write-after-response pattern above reflects the architecture as it should be after the upcoming pre-launch session. Currently, Supabase writes block the response. This will be fixed in the next Claude Code session.
+**Note on Supabase write order:** Non-blocking writes (fire after res.json()) were attempted but reverted — Vercel terminates serverless functions immediately after res.json() is called, so background saves never completed and shareable URLs broke. Writes remain blocking until a streaming or queuing solution is available.
 
 ### Shareable URL Flow
 ```
@@ -108,7 +107,7 @@ Constellation renders without using an API call (no rate limit impact)
 ## Performance Architecture & Known Bottlenecks
 
 ### Response Time Reality
-A full constellation search currently takes **12-28 seconds** (average ~15-18 seconds). This is the primary UX problem identified through real-world user testing before launch.
+Current response times: **35-44 seconds** (improved from a 44-57 second regression; working toward the original 15-18 second baseline). Token logging is now active in the serverless function — check Vercel function logs to monitor actual input/output token counts per request.
 
 ### Latency Breakdown (from Technical Audit, February 25, 2026)
 | Stage | Impact | Time |
@@ -117,34 +116,37 @@ A full constellation search currently takes **12-28 seconds** (average ~15-18 se
 | Rate limit check (Supabase read) | Low-Medium | 100-300ms |
 | Claude API — time to first token | High | 2-5 seconds |
 | Claude API — token generation | High | 8-20 seconds |
-| Supabase writes (currently blocking) | Low-Medium | 200-500ms |
+| Supabase writes (blocking) | Low-Medium | 200-500ms |
 | Transit + render | Low | 150-400ms |
 
 **Key insight:** Claude's token generation accounts for ~85-90% of total latency. This cannot be eliminated — it is the cost of generating rich, unique thematic analysis. The strategy is to eliminate unnecessary overhead around it and make the wait feel intentional.
 
-### Approved Performance Interventions
-The following decisions were made by the CEO on February 25, 2026 after a full technical audit:
+**max_tokens:** Currently **4500** (reduced from 8000). A full 8-movie constellation uses ~3,000-3,500 tokens; 4500 provides ~30% headroom. Monitor token logs and tune down if 95th percentile output stays under 3000 tokens.
 
-**✅ Approved — implement in next session:**
-1. **Eliminate cold starts** — Vercel cron job pings `/api/health` every 5 minutes
-2. **Move Supabase writes after response** — send constellation to user first, save to DB second (saves 200-500ms)
-3. **Improve loading experience** — show the searched movie title on the loading screen, add honest time expectation message ("This usually takes 15-20 seconds")
-4. **Reduce movies to exactly 8** — system prompt updated from "8-12 movies" to "exactly 8 movies, one anchored per thematic thread"
+### Performance Interventions — Outcomes (February 25, 2026)
+| Intervention | Outcome |
+|---|---|
+| Eliminate cold starts via cron | ❌ Blocked — Vercel Hobby plan only supports daily crons, not every 5 min. UptimeRobot (free external pinger) is the alternative — not yet set up. |
+| Non-blocking Supabase writes | ❌ Reverted — Vercel terminates function after res.json(); background saves never ran, breaking shareable URLs. |
+| Improved loading screen | ✅ Deployed — shows searched title, honest time expectation message |
+| Reduce to exactly 8 movies | ✅ Deployed |
+| Reduced max_tokens 8000→4500 | ✅ Deployed |
+| Conciseness instruction added | ✅ Deployed — 2-3 sentence desc cap, 3500 token budget |
+| Token usage logging | ✅ Deployed — visible in Vercel function logs |
 
-**⏸ Deferred — post-launch:**
-- Streaming responses (highest long-term impact, significant architectural work)
-- Caching popular searches (instant results for common titles — Week 1 post-launch priority)
-- Model selection by search type (Haiku for guided mode) — rejected by CEO to preserve quality
-
-**❌ Rejected:**
+**❌ Rejected interventions:**
 - Reducing content quality (trimming vibe lines, removing why_this_exists) — CEO: "the nuance is the magic"
 - Using Haiku for guided mode — CEO: "nuanced results are the magic of Filament"
 
+**⏸ Deferred — post-launch:**
+- Streaming responses (highest long-term impact, significant architectural work — Week 1-2 priority)
+- Caching popular searches (instant results for common titles — Week 1 priority)
+
 ---
 
-## AI System Prompt (v2 — To Be Deployed in Step 3)
+## AI System Prompt — Current Production Version
 
-The v2 system prompt replaces the v1 prompt. It instructs Claude to generate threads across four dimensions instead of one. **Note:** The movie count has been updated to exactly 8 (changed from 8-12) as a performance decision approved February 25, 2026.
+This is the exact prompt in `api/constellation.js` as of February 25, 2026. **max_tokens: 4500.**
 
 ```
 You are a cinematic thematic analyst with encyclopedic film knowledge and the soul of a passionate cinephile. You identify deep connections between films and TV shows across four dimensions.
@@ -181,8 +183,8 @@ Return ONLY valid JSON (no markdown, no backticks, no preamble):
 
 RULES:
 - Generate 5-7 threads: 2-3 thematic, 1-2 craft signature, 1-2 creative philosophy, 1 cinematic lineage
-- Return exactly 8 movies/shows. If a specific title was searched, it should be first.
-- Aim for one film strongly anchored to each thematic thread, avoiding redundancy.
+- Return exactly 8 movies/shows. The searched title (if given) should be first.
+- Each film should connect to 2-3 threads. Avoid picking two films that serve the same role in the constellation.
 - Mix well-known films with hidden gems that cinephiles treasure
 - "vibe" should be punchy, personal, evocative — NOT a plot summary
 - "why_this_exists" illuminates the creative impulse, not the plot
@@ -190,6 +192,7 @@ RULES:
 - Only return REAL movies/shows with CORRECT years
 - Thread names should be poetic and specific, never generic genre labels
 - theme ids must be lowercase with underscores
+- Be concise: "desc" should be 2-3 sentences maximum. "explanation" should be one short sentence. Keep total response under 3500 tokens.
 ```
 
 ---
@@ -250,10 +253,10 @@ A complete, functional v2 prototype was built February 18, 2026 as a React artif
 
 **Key adaptation needed for production:**
 - Route API calls through `/api/constellation` serverless function
-- Update system prompt in `api/constellation.js` to v2 prompt (with 8-movie count)
+- The production system prompt already has the four thread types and 8-movie count — Step 3 Session 1 focuses on the questionnaire redesign, error handling, and backward compatibility
 - Ensure frontend handles both v1 and v2 constellation formats from Supabase
 - Port improved error handling from prototype
-- `max_tokens` increased from 4000 to 8000 — monitor API costs after deployment
+- `max_tokens` is currently 4500 — monitor post-launch and tune if needed
 
 ---
 
@@ -264,10 +267,9 @@ A complete, functional v2 prototype was built February 18, 2026 as a React artif
 - Interactive force-directed graph with physics simulation
 - Node click → detail panel (description, vibe, threads, connections)
 - Theme filter pills — click to isolate thematic threads
-- Drag-to-rearrange nodes
+- Drag-to-rearrange nodes (desktop only)
 - Animated geometric dot-and-line background (canvas-based, cursor-reactive)
 - Animated loading state with rotating phrases and progress bar
-- Responsive layout (works on desktop and mobile)
 - Secure API key handling via serverless function
 - **Supabase database** — constellations and search_logs tables with RLS policies
 - **Rate limiting** — 5 searches per IP per 24 hours
@@ -276,12 +278,13 @@ A complete, functional v2 prototype was built February 18, 2026 as a React artif
 - **Share button** — copy-to-clipboard functionality
 - **Searches remaining indicator** — shows users how many free searches they have left
 - **Friendly rate limit messages** — user-facing messaging when limit is reached
-- **Cold start prevention** — `/api/health` endpoint + Vercel cron pings every 5 minutes
-- **Non-blocking Supabase writes** — response sent immediately after Claude; DB saves fire after
-- **Improved loading screen** — shows searched movie title + "This usually takes 15–20 seconds" message
-- **Exactly 8 movies** — system prompt updated; one film anchored per thematic thread
+- **Improved loading screen** — shows searched movie title + honest time expectation ("up to a minute")
+- **Exactly 8 movies** — system prompt with conciseness rules and 4500 max_tokens
+- **Token usage logging** — input/output token counts logged per request to Vercel function logs
+- **Mobile-native experience** — bottom sheet detail panel, touch-aware node selection, horizontal pill scroll, pinch-zoom disabled, larger typography, drag disabled on mobile (< 768px breakpoint)
 
 ## Features Not Yet Built ❌
+- **UptimeRobot cold start prevention** — free external pinger, no code required, 5-minute task (queued)
 - Four thread types (v2) — designed, prototype built and reviewed, not yet in production
 - Redesigned guided questionnaire (64 combinations) — designed, prototype ready, not yet in production
 - UX overhaul (onboarding, thread explanation cards, d3-force, etc.) — designed, prototype ready, not yet in production
@@ -300,7 +303,6 @@ A complete, functional v2 prototype was built February 18, 2026 as a React artif
 - Subscription tier gating
 - Affiliate links
 - Terms of service / privacy policy
-- Mobile UX optimization
 - PWA support
 
 ---
@@ -311,11 +313,11 @@ Eight defined roles. Seven executed through one Claude Code instance on one code
 
 ### Agent 1 — Infrastructure Architect
 **Owns:** Database, authentication, rate limiting, caching, environment config, deployment pipeline, error handling, server performance
-**Status:** Core infrastructure complete. Cold start fix and DB write reorder queued for next session.
+**Status:** Core infrastructure complete. Cold start prevention blocked by Vercel Hobby plan — UptimeRobot setup pending. Non-blocking DB writes not viable on Vercel serverless. Performance tuning (max_tokens, conciseness rules, token logging) complete.
 
 ### Agent 2 — Product Engineer
 **Owns:** New features, UI/UX iteration, shareable URLs, loading experience, guided mode, deep dive mode, multi-seed search, streaming overlay, mobile optimization
-**Status:** Shareable URLs complete. Loading screen improvement queued for next session. v2 prototype built and reviewed — ready for production port in Step 3.
+**Status:** Shareable URLs, loading screen, and full mobile-native experience complete. v2 prototype built and reviewed — ready for production port in Step 3.
 
 ### Agent 3 — Growth & Marketing Strategist
 **Owns:** Community seeding, social content, launch copy, Reddit/Twitter/Letterboxd strategy, SEO, newsletter
@@ -348,7 +350,7 @@ Eight defined roles. Seven executed through one Claude Code instance on one code
 |------|-------|-----------------|--------|
 | 1 | Infrastructure Architect | Supabase database, rate limiting, error recovery | ✅ COMPLETED Feb 13 |
 | 2 | Product Engineer | Shareable URLs, share button, rate limit UX | ✅ COMPLETED Feb 13 |
-| 2.5 | Agent 1 + Agent 2 | Pre-launch performance fixes (4 tasks) | ✅ COMPLETED Feb 25 |
+| 2.5 | Agent 1 + Agent 2 | Pre-launch performance fixes + mobile-native experience | ✅ COMPLETED Feb 25 (cold start cron blocked by Hobby plan; UptimeRobot setup pending) |
 | **3** | **Creative Director + Product Engineer** | **v2 port: four thread types, new questionnaire, UI/UX overhaul** | **← NEXT SESSION** |
 | 4 | Analytics & Optimization | Plausible/PostHog, event tracking, API cost monitoring | Pending |
 | 5 | Legal & Compliance | ToS, privacy policy, cookie consent | Pending |
@@ -356,33 +358,32 @@ Eight defined roles. Seven executed through one Claude Code instance on one code
 | 7 | Data Quality & Enrichment | TMDB integration, validation, caching | Pending |
 | 8 | Monetization & Business Ops | Stripe, subscriptions, affiliate links | Pending |
 
-### Step 2.5 — Pre-Launch Performance Fixes (4 Tasks)
+### Step 2.5 — Pre-Launch Performance Fixes — What Actually Shipped
 
-This step was inserted on February 25, 2026 after real-world user testing revealed that response time (15-20 seconds average) was causing user abandonment before results arrived. A technical audit was conducted and the CEO approved four specific interventions.
+**Shipped:**
+- Loading screen shows searched movie title ("Mapping the constellation around X") + honest time expectation ("This can take up to a minute, we're doing the deep work")
+- System prompt updated to exactly 8 movies with conciseness rules
+- max_tokens reduced 8000 → 4500
+- Token usage (input/output) logged to Vercel function logs after every request
+- Response time regression fixed (44-57s → 35-44s) by rewriting constraining prompt rule
 
-**Task 1: Eliminate cold starts**
-- Create `/api/health.js` health check endpoint
-- Add Vercel cron job in `vercel.json` to ping it every 5 minutes
+**Attempted but reverted:**
+- Vercel cron job for cold start prevention — Hobby plan only supports daily crons; alternative: UptimeRobot (free, no code required, pending setup)
+- Non-blocking Supabase writes — Vercel terminates function after res.json(); reverted to blocking writes to preserve shareable URLs
 
-**Task 2: Move Supabase writes after response**
-- Restructure `api/constellation.js` to send `res.json()` immediately after Claude responds
-- Fire Supabase saves (constellation + search log) as non-blocking operations after response is sent
-- Share ID must still be generated before the response
+**Mobile-native experience (also shipped Feb 25):**
+- Full < 768px responsive breakpoint with isMobile detection
+- Bottom sheet detail panel (fixed, 80vh, animated translateY entry)
+- Touch-aware node selection (8px slop threshold, prevents double-fire)
+- Drag disabled on mobile; enlarged nodes, larger type, year text hidden
+- Thread pills horizontally scrollable single row
+- Pinch-zoom disabled (viewport meta)
+- Onboarding and hint text updated for touch ("Tap" vs "Click")
+- Tested and confirmed on Pixel 10 Pro / Chrome
 
-**Task 3: Improve loading experience**
-- Pass search query into loading component
-- Display "Mapping the constellation around [Movie Title]" on loading screen
-- Add time expectation message: "This usually takes 15–20 seconds — we're doing the deep work"
-- For guided mode: show "Mapping your constellation..." instead
-
-**Task 4: Reduce movies to exactly 8**
-- Update system prompt in `api/constellation.js`
-- Change "8-12 movies" to "exactly 8 movies"
-- Add rule: "Aim for one film strongly anchored to each thematic thread, avoiding redundancy"
-
-### Step 3 Details (After Pre-Launch Session)
-**Session 1:** New system prompt (already updated above with 8-movie count), improved error handling, new questionnaire with `buildGuidePrompt` natural-language compilation, backward compatibility for v1 shared URLs
-**Session 2:** d3-force physics, drag pattern, onboarding overlay, thread pills with type icons, explanation cards, detail panel overhaul, help button, hint text, year display
+### Step 3 Details (Next Session)
+**Session 1:** New questionnaire with `buildGuidePrompt` natural-language compilation, improved error handling, backward compatibility for v1 shared URLs. Note: the production system prompt already has the four thread types — Session 1 focus is the questionnaire and error handling.
+**Session 2:** d3-force physics already in production; Session 2 focuses on onboarding overlay, thread pills with type icons and explanation cards, detail panel hierarchy overhaul, help button, hint text refinements, year display.
 
 ---
 
@@ -393,8 +394,7 @@ This step was inserted on February 25, 2026 after real-world user testing reveal
 - **Streaming responses** — Implement Anthropic streaming API through serverless function with progressive UI. Transforms "wait then see" into "watch it assemble." Highest long-term UX impact.
 
 ### Week 1-2
-- Model selection by search type (test Haiku for guided mode if quality holds)
-- Monitor actual max_tokens usage — if 95th percentile is under 3500 tokens, reduce ceiling to 4500-5000
+- Monitor actual max_tokens usage in Vercel function logs — if 95th percentile output is consistently under 3000 tokens, reduce ceiling further below 4500
 
 ---
 
@@ -418,7 +418,7 @@ This step was inserted on February 25, 2026 after real-world user testing reveal
 - License thematic engine to streaming platforms
 
 ### Cost Structure
-- Per constellation: ~$0.01-0.03 (may be slightly higher with max_tokens 8000 — monitor after v2 deployment)
+- Per constellation: ~$0.01-0.03 with max_tokens 4500 — monitor actual costs via token logs in Vercel dashboard
 - 1,000 daily users × 5 searches/day: ~$50-150/month
 - Vercel free tier covers initial hosting
 - Supabase free tier covers initial database
@@ -480,12 +480,12 @@ This step was inserted on February 25, 2026 after real-world user testing reveal
 
 - Custom domain: `filament.movie` mentioned as possibility, not purchased
 - Same search yields different constellations each time — feature or bug? (No decision made)
-- Mobile constellation view needs design attention — scoped for Step 3 Session 2
 - Pricing ($4-6/month) is untested — will validate after launch
 - Analytics tool: Plausible vs PostHog not decided — decision needed at Step 4
 - No formal timeline beyond phased roadmap
 - Literature version: build after cinema reaches profitability
-- max_tokens is now 4500 — monitor token usage in Vercel function logs (input/output logged per request); tune further if 95th percentile output is consistently under 3000 tokens
+- max_tokens 4500 — monitor via Vercel function logs; tune down if 95th percentile output is consistently under 3000 tokens
+- UptimeRobot cold start prevention — not yet set up, no code required, 5-minute task
 
 ---
 
@@ -505,12 +505,18 @@ This step was inserted on February 25, 2026 after real-world user testing reveal
 - [x] **v2 Prototype Review** — Reviewed and approved by Chief Strategist (Feb 18, 2026)
 - [x] **Performance Audit** — Technical Diagnostician identified latency sources and ranked interventions (Feb 25, 2026)
 - [x] **Performance Decisions** — CEO approved four pre-launch interventions; streaming and caching deferred to post-launch; Haiku model swap rejected to preserve quality (Feb 25, 2026)
-- [x] **Step 2.5: Pre-Launch Performance Fixes** — Loading screen shows searched title + time expectation message, system prompt updated to exactly 8 movies (Feb 25, 2026). Note: cold start cron reverted (Hobby plan limitation); non-blocking DB writes reverted (Vercel terminates function after res.json()).
-- [x] **Response Time Regression Fix** — Reworded constraining prompt rule to a simple heuristic, reduced max_tokens 8000→4500, added conciseness instruction (2-3 sentence desc cap, 3500 token budget), added token usage logging to Vercel function logs (Feb 25, 2026)
+- [x] **Step 2.5: Pre-Launch Performance Fixes** — Loading screen shows searched title + honest time expectation ("up to a minute"), system prompt updated to exactly 8 movies (Feb 25, 2026). Cold start cron blocked by Hobby plan (UptimeRobot alternative pending); non-blocking DB writes reverted (Vercel terminates function after res.json()).
+- [x] **Response time regression identified and fixed** — Constraining prompt rule rewritten to simple heuristic, max_tokens 8000→4500, conciseness rule added (2-3 sentence desc cap, 3500 token budget), token usage logging added to Vercel function logs. Response times: 44-57s → 35-44s (Feb 25, 2026)
+- [x] **Loading screen time expectation updated** — Message changed to "This can take up to a minute, we're doing the deep work" to reflect honest current performance (Feb 25, 2026)
+- [x] **Mobile-native experience deployed** — Touch-aware node selection, bottom sheet detail panel, horizontal pill scroll, disabled drag, pinch-zoom prevention, responsive typography, isMobile breakpoint at 768px. Tested on Pixel 10 Pro / Chrome (Feb 25, 2026)
 
 ### In Progress
 - [ ] *Nothing currently in progress*
 
 ### Up Next
-- [ ] **Step 3: Product Redesign — Session 1** — New system prompt in api/constellation.js, improved error handling, new questionnaire, guide prompt compilation, backward compatibility for v1 shared URLs
-- [ ] **Step 3: Product Redesign — Session 2** — d3-force physics, drag pattern, onboarding overlay, thread pills, explanation cards, detail panel overhaul, help button, hint text, year display
+- [ ] **UptimeRobot cold start prevention** — Free external pinger, no code required, ~5 minutes to set up at uptimerobot.com
+- [ ] **Step 3: Product Redesign — Session 1** — New questionnaire with buildGuidePrompt compilation, improved error handling, backward compatibility for v1 shared URLs
+- [ ] **Step 3: Product Redesign — Session 2** — Onboarding overlay, thread pills with type icons and explanation cards, detail panel hierarchy overhaul, help button, hint text refinements
+- [ ] **Step 4:** Analytics (Plausible or PostHog)
+- [ ] **Step 5:** Legal (ToS, Privacy Policy)
+- [ ] **Step 6:** Community launch (Reddit, Film Twitter, Letterboxd)
