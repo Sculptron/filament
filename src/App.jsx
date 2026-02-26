@@ -249,6 +249,14 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
   const dragRef = useRef(null);
   const dragStartRef = useRef(null);
   const didDragRef = useRef(false);
+  const touchStartRef = useRef(null);
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const themeMap = {};
   const themeColors = {};
@@ -266,7 +274,7 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
     const h = Math.min(window.innerHeight - 140, 560);
     setDims({ w, h });
 
-    const simNodes = data.movies.map((m, i) => ({ ...m, index: i, radius: 17 + m.themes.length * 3 }));
+    const simNodes = data.movies.map((m, i) => ({ ...m, index: i, radius: isMobile ? 22 + m.themes.length * 3 : 17 + m.themes.length * 3 }));
     const simLinks = [];
     for (let i = 0; i < data.movies.length; i++)
       for (let j = i + 1; j < data.movies.length; j++) {
@@ -307,6 +315,7 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
   const lColor = l => { const t = activeTheme && l.themes.includes(activeTheme) ? activeTheme : l.themes[0]; return themeColors[t] || "#666"; };
 
   const onPD = (e, n) => {
+    if (isMobile) return;
     e.stopPropagation(); e.preventDefault();
     dragRef.current = n;
     dragStartRef.current = { x: e.clientX, y: e.clientY };
@@ -380,9 +389,15 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
         <h2 style={{fontSize:28,fontWeight:300,color:"#fff",margin:"0 0 16px",textAlign:"center",lineHeight:1.4,maxWidth:480}}>
           We found {mc} films connected by {tc} invisible threads
         </h2>
-        <p style={{fontSize:14,color:"#555",margin:"0 0 40px",textAlign:"center",maxWidth:420,lineHeight:1.7,fontWeight:300}}>
-          Shared obsessions, cinematic lineages, and feelings that echo across decades. Click any film to see why it belongs here.
+        <p style={{fontSize:14,color:"#555",margin:isMobile?"0":"0 0 40px",textAlign:"center",maxWidth:420,lineHeight:1.7,fontWeight:300}}>
+          Shared obsessions, cinematic lineages, and feelings that echo across decades.{" "}
+          {isMobile ? "Tap any film to see why it belongs here." : "Click any film to see why it belongs here."}
         </p>
+        {isMobile && (
+          <p style={{fontSize:13,color:"#666",margin:"8px 0 40px",textAlign:"center",fontWeight:300}}>
+            Swipe the threads above to explore connections.
+          </p>
+        )}
         <button onClick={()=>setShowOnboard(false)}
           style={{background:"#C77DFF18",border:"1px solid #C77DFF44",borderRadius:10,padding:"12px 36px",color:"#C77DFF",fontSize:14,cursor:"pointer",letterSpacing:1,fontFamily:"inherit",transition:"all 0.3s"}}
           onMouseEnter={e=>{e.currentTarget.style.background="#C77DFF28";e.currentTarget.style.borderColor="#C77DFF66";}}
@@ -396,8 +411,8 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
   return (
     <div style={{background:"transparent",minHeight:"100vh",fontFamily:"'Inter',-apple-system,sans-serif",color:"#e0e0e0",position:"relative",zIndex:1}}>
       {/* Header */}
-      <div style={{padding:"16px 20px 6px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-        <button onClick={onBack} style={{background:"#0a0a0f99",backdropFilter:"blur(8px)",border:"1px solid #333",color:"#888",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",letterSpacing:0.5}}>← Back</button>
+      <div style={{padding:"16px 20px 6px",paddingTop:isMobile?"env(safe-area-inset-top)":undefined,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <button onClick={onBack} style={{background:"#0a0a0f99",backdropFilter:"blur(8px)",border:"1px solid #333",color:"#888",borderRadius:8,padding:isMobile?"8px 16px":"6px 14px",fontSize:12,cursor:"pointer",letterSpacing:0.5}}>← Back</button>
         <h1 style={{fontSize:22,fontWeight:200,letterSpacing:5,margin:0,color:"#fff",textTransform:"uppercase"}}>Filament</h1>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
           {searchesRemaining !== null && searchesRemaining !== undefined && (
@@ -412,7 +427,7 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
             </button>
           )}
           <button onClick={()=>setShowHelp(h=>!h)}
-            style={{background:showHelp?"#C77DFF22":"#0a0a0f99",backdropFilter:"blur(8px)",border:`1px solid ${showHelp?"#C77DFF44":"#333"}`,color:showHelp?"#C77DFF":"#666",borderRadius:"50%",width:30,height:30,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"inherit"}}>
+            style={{background:showHelp?"#C77DFF22":"#0a0a0f99",backdropFilter:"blur(8px)",border:`1px solid ${showHelp?"#C77DFF44":"#333"}`,color:showHelp?"#C77DFF":"#666",borderRadius:"50%",width:isMobile?40:30,height:isMobile?40:30,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontFamily:"inherit"}}>
             ?
           </button>
         </div>
@@ -427,14 +442,14 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
       {/* Thread filters */}
       <div style={{padding:"6px 20px 4px"}}>
         <p style={{fontSize:10,color:"#555",margin:"0 0 6px",letterSpacing:1,textTransform:"uppercase"}}>What connects them</p>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+        <div style={{display:"flex",flexWrap:isMobile?"nowrap":"wrap",overflowX:isMobile?"auto":"visible",WebkitOverflowScrolling:isMobile?"touch":undefined,scrollbarWidth:isMobile?"none":undefined,gap:isMobile?5:6,paddingBottom:isMobile?4:0}}>
           {data.themes.map(t=>{
             const active=activeTheme===t.id;
             const c=themeColors[t.id]||"#666";
             const icon=TYPE_ICONS[themeTypes[t.id]]||"◆";
             return (
               <button key={t.id} onClick={()=>setActiveTheme(active?null:t.id)}
-                style={{background:active?c+"22":"#0a0a0f88",backdropFilter:"blur(6px)",border:`1px solid ${active?c:"#333"}`,color:active?c:"#666",borderRadius:20,padding:"3px 11px",fontSize:10,cursor:"pointer",transition:"all 0.3s",letterSpacing:0.3,fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>
+                style={{background:active?c+"22":"#0a0a0f88",backdropFilter:"blur(6px)",border:`1px solid ${active?c:"#333"}`,color:active?c:"#666",borderRadius:20,padding:isMobile?"5px 14px":"3px 11px",fontSize:isMobile?11:10,minHeight:isMobile?28:"auto",cursor:"pointer",transition:"all 0.3s",letterSpacing:0.3,fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
                 <span style={{opacity:active?1:0.5}}>{icon}</span>
                 {t.name}
               </button>
@@ -464,12 +479,21 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
             const isFirst=n.id===data.movies[0]?.id;
             return (
               <g key={n.id} style={{cursor:"pointer",transition:"opacity 0.4s"}} opacity={op}
-                onPointerDown={e=>onPD(e,n)} onClick={e=>onNodeClick(e,n)} onMouseEnter={()=>setHovered(n.id)} onMouseLeave={()=>setHovered(null)}>
+                onPointerDown={e=>onPD(e,n)} onClick={e=>onNodeClick(e,n)} onMouseEnter={()=>setHovered(n.id)} onMouseLeave={()=>setHovered(null)}
+                onTouchStart={e => { touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+                onTouchEnd={e => {
+                  if (!touchStartRef.current) return;
+                  const dx = Math.abs(e.changedTouches[0].clientX - touchStartRef.current.x);
+                  const dy = Math.abs(e.changedTouches[0].clientY - touchStartRef.current.y);
+                  if (dx < 8 && dy < 8) { e.preventDefault(); onNodeClick(e, n); }
+                  touchStartRef.current = null;
+                }}>
+                {isMobile && <circle cx={n.x} cy={n.y} r={Math.max(22, n.radius + 10)} fill="transparent" />}
                 <circle cx={n.x} cy={n.y} r={n.radius*2.2} fill={`url(#g-${pt})`} opacity={isSel?0.45:isH?0.3:isFirst?0.25:0.07}/>
                 <circle cx={n.x} cy={n.y} r={n.radius} fill={isSel?c+"33":"#0e0e18"} stroke={c} strokeWidth={isSel||isFirst?2:1}/>
                 <circle cx={n.x} cy={n.y} r={3} fill={c} opacity={0.9}/>
-                <text x={n.x} y={n.y+n.radius+14} textAnchor="middle" fill={isSel||isH?"#fff":"#888"} fontSize={9.5} fontWeight={isSel?500:300} letterSpacing={0.4} style={{pointerEvents:"none"}}>{n.title}</text>
-                <text x={n.x} y={n.y+n.radius+25} textAnchor="middle" fill="#444" fontSize={8.5} style={{pointerEvents:"none"}}>{n.year}</text>
+                <text x={n.x} y={n.y+n.radius+(isMobile?15:14)} textAnchor="middle" fill={isSel||isH?"#fff":"#888"} fontSize={isMobile?11:9.5} fontWeight={isSel?500:300} letterSpacing={0.4} style={{pointerEvents:"none"}}>{n.title}</text>
+                {!isMobile && <text x={n.x} y={n.y+n.radius+25} textAnchor="middle" fill="#444" fontSize={8.5} style={{pointerEvents:"none"}}>{n.year}</text>}
               </g>
             );
           })}
@@ -477,27 +501,70 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
         {hint && !selected && (
           <p style={{textAlign:"center",fontSize:11,color:"#333",margin:"6px 0 0",letterSpacing:0.5,pointerEvents:"none"}}>click a movie to explore · drag to rearrange</p>
         )}
-        {selected && (
+        {selected && (isMobile ? (
+          // MOBILE: Bottom sheet
+          <div style={{position:"fixed",bottom:0,left:0,right:0,maxHeight:"80vh",background:"#0c0c14f5",backdropFilter:"blur(24px)",borderTop:"1px solid #1a1a2e",borderRadius:"16px 16px 0 0",overflowY:"auto",zIndex:100,animation:"fdUp 0.35s cubic-bezier(0.4,0,0.2,1)",paddingBottom:"env(safe-area-inset-bottom)"}}>
+            <div style={{display:"flex",justifyContent:"center",padding:"12px 0 8px"}}>
+              <div style={{width:32,height:4,borderRadius:2,background:"#333"}} />
+            </div>
+            <div style={{padding:"0 20px 24px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",marginBottom:12}}>
+                <div><h2 style={{fontSize:19,fontWeight:400,margin:0,color:"#fff",lineHeight:1.3}}>{selected.title}</h2><p style={{fontSize:13,color:"#555",margin:"3px 0 0"}}>{selected.year} · {selected.type}</p></div>
+                <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:22,padding:8,lineHeight:1}}>×</button>
+              </div>
+              <div style={{background:"#151520",borderRadius:8,padding:12,margin:"0 0 8px"}}>
+                <p style={{fontSize:10,color:"#555",margin:"0 0 3px",textTransform:"uppercase",letterSpacing:1}}>The Vibe</p>
+                <p style={{fontSize:14,color:"#bbb",margin:0,lineHeight:1.7,fontStyle:"italic"}}>{selected.vibe}</p>
+              </div>
+              {selected.why_this_exists && (
+                <div style={{background:"#151520",borderRadius:8,padding:12,marginBottom:8}}>
+                  <p style={{fontSize:10,color:"#555",margin:"0 0 3px",textTransform:"uppercase",letterSpacing:1}}>Why This Exists</p>
+                  <p style={{fontSize:14,color:"#bbb",margin:0,lineHeight:1.7,fontStyle:"italic"}}>{selected.why_this_exists}</p>
+                </div>
+              )}
+              <p style={{fontSize:14,color:"#999",lineHeight:1.7,margin:"0 0 12px"}}>{selected.desc}</p>
+              <div style={{marginBottom:12}}>
+                <p style={{fontSize:10,color:"#555",margin:"0 0 6px",textTransform:"uppercase",letterSpacing:1}}>Connected through</p>
+                <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                  {selected.themes.map(t=>{
+                    const c=themeColors[t]||"#666";
+                    const icon=TYPE_ICONS[themeTypes[t]]||"◆";
+                    return (<span key={t} onClick={e=>{e.stopPropagation();setActiveTheme(activeTheme===t?null:t);}} style={{fontSize:13,color:c,border:`1px solid ${c}44`,borderRadius:12,padding:"4px 10px",cursor:"pointer",background:activeTheme===t?c+"22":"transparent",display:"inline-flex",alignItems:"center",gap:3,transition:"all 0.2s"}}>{icon} {themeMap[t]||t}</span>);
+                  })}
+                </div>
+              </div>
+              <div>
+                <p style={{fontSize:10,color:"#555",margin:"0 0 6px",textTransform:"uppercase",letterSpacing:1}}>Also connected to</p>
+                {links.filter(l=>(l.sourceId===selected.id||l.targetId===selected.id)).map((l,i)=>{
+                  const oid=l.sourceId===selected.id?l.targetId:l.sourceId;
+                  const o=data.movies.find(m=>m.id===oid);
+                  if(!o) return null;
+                  return (<div key={i} onClick={e=>{e.stopPropagation();setSelected(o);}} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 0",cursor:"pointer",borderBottom:"1px solid #151525"}}>
+                    <span style={{fontSize:13,color:"#ccc"}}>{o.title}</span>
+                    <span style={{fontSize:11,color:"#444",marginLeft:"auto"}}>{l.strength} thread{l.strength>1?"s":""}</span>
+                  </div>);
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          // DESKTOP: Side panel — unchanged
           <div style={{position:"absolute",right:12,top:0,width:280,background:"#0e0e18dd",backdropFilter:"blur(20px)",border:"1px solid #222",borderRadius:12,padding:20,animation:"fdIn 0.3s ease",maxHeight:dims.h,overflowY:"auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"start"}}>
               <div><h2 style={{fontSize:16,fontWeight:400,margin:0,color:"#fff",lineHeight:1.3}}>{selected.title}</h2><p style={{fontSize:11,color:"#555",margin:"3px 0 0"}}>{selected.year} · {selected.type}</p></div>
               <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:18,padding:4,lineHeight:1}}>×</button>
             </div>
-            {/* The Vibe */}
             <div style={{background:"#151520",borderRadius:8,padding:12,margin:"12px 0 8px"}}>
               <p style={{fontSize:10,color:"#555",margin:"0 0 3px",textTransform:"uppercase",letterSpacing:1}}>The Vibe</p>
               <p style={{fontSize:12,color:"#bbb",margin:0,lineHeight:1.5,fontStyle:"italic"}}>{selected.vibe}</p>
             </div>
-            {/* Why This Exists */}
             {selected.why_this_exists && (
               <div style={{background:"#151520",borderRadius:8,padding:12,marginBottom:8}}>
                 <p style={{fontSize:10,color:"#555",margin:"0 0 3px",textTransform:"uppercase",letterSpacing:1}}>Why This Exists</p>
                 <p style={{fontSize:12,color:"#bbb",margin:0,lineHeight:1.5,fontStyle:"italic"}}>{selected.why_this_exists}</p>
               </div>
             )}
-            {/* Description */}
             <p style={{fontSize:12,color:"#999",lineHeight:1.6,margin:"0 0 12px"}}>{selected.desc}</p>
-            {/* Connected through */}
             <div style={{marginBottom:12}}>
               <p style={{fontSize:10,color:"#555",margin:"0 0 6px",textTransform:"uppercase",letterSpacing:1}}>Connected through</p>
               <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
@@ -508,7 +575,6 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
                 })}
               </div>
             </div>
-            {/* Also connected to */}
             <div>
               <p style={{fontSize:10,color:"#555",margin:"0 0 6px",textTransform:"uppercase",letterSpacing:1}}>Also connected to</p>
               {links.filter(l=>(l.sourceId===selected.id||l.targetId===selected.id)).map((l,i)=>{
@@ -522,9 +588,9 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
               })}
             </div>
           </div>
-        )}
+        ))}
       </div>
-      <style>{`@keyframes fdIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}`}</style>
+      <style>{`@keyframes fdIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}@keyframes fdUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
     </div>
   );
 }
