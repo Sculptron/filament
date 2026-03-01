@@ -3,6 +3,34 @@
 > **Read this file first at the start of every Claude Code session.**
 > This is the living brain of the Filament project. It contains everything you need to understand the product, the architecture, the plan, and the current state of progress.
 
+<!-- DASHBOARD_SNAPSHOT
+project_id: filament
+project_name: Filament
+category: Dev Product
+tagline: AI-powered thematic movie discovery via constellation maps
+status: Live — Pre-Launch Monetization & UX Prep
+phase: Step 2.6 of 8
+progress: 52
+last_touched: 2026-02-25
+next_milestone: UX Agent specs + Social Agent content arsenal + Stripe paywall implementation
+tasks:
+  - Activate UX Agent (Agent 10) — share sheet, cold visitor CTA, Pro visibility specs
+  - Activate Social Media Agent (Agent 11) — tweet templates, Reddit playbook, founder posts
+  - "CEO actions: Apply to Mubi + Amazon Associates, confirm Twitter/X account, confirm LTD seat cap"
+  - "Step 2.8: Implement Stripe paywall (LTD $79 + subscription $6/mo) + reduce free tier 5→3 searches"
+week_tasks:
+  - priority: high
+    task: Activate UX Agent — spec share sheet redesign + cold visitor CTA
+  - priority: high
+    task: Activate Social Media Agent — build full launch content arsenal
+  - priority: med
+    task: "CEO: Apply to Mubi and Amazon Associates affiliate programs"
+  - priority: med
+    task: Set up UptimeRobot cold start prevention (5 min, no code)
+resources: filament-pink.vercel.app · github.com/Sculptron/filament
+parked: false
+END_DASHBOARD_SNAPSHOT -->
+
 ---
 
 ## What Is Filament?
