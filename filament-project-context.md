@@ -285,6 +285,13 @@ A complete, functional v2 prototype was built February 18, 2026 as a React artif
 
 ## Features Not Yet Built ❌
 - **UptimeRobot cold start prevention** — free external pinger, no code required, 5-minute task (queued)
+- **Free tier reduced from 5 to 3 searches** — approved, pending Developer Agent implementation (primary conversion lever)
+- **Stripe paywall integration** — subscription ($6/month or $49/year) + Lifetime Deal ($79 one-time, capped 100 seats)
+- **User authentication system** — required before subscriptions can work; LTD buyers need accounts to log in
+- **Share sheet redesign** — small share sheet with Copy Link + Tweet This (pre-populated tweet with film title, thread name, URL, hashtags)
+- **Cold visitor CTA on shared constellation pages** — visible above-the-fold "Generate your own constellation →" routing visitors into search/questionnaire flow; must be live before any social posts go out
+- **Pro feature visibility before paywall** — users must see what they're missing before hitting the limit; upgrade should feel like gaining something, not hitting a wall
+- **Affiliate links embedded in film results** — Mubi (priority) + Amazon Associates; passive revenue scaling with traffic
 - Four thread types (v2) — designed, prototype built and reviewed, not yet in production
 - Redesigned guided questionnaire (64 combinations) — designed, prototype ready, not yet in production
 - UX overhaul (onboarding, thread explanation cards, d3-force, etc.) — designed, prototype ready, not yet in production
@@ -299,9 +306,6 @@ A complete, functional v2 prototype was built February 18, 2026 as a React artif
 - Analytics (Plausible or PostHog)
 - Custom domain
 - SEO / Open Graph meta tags
-- Payment processing (Stripe)
-- Subscription tier gating
-- Affiliate links
 - Terms of service / privacy policy
 - PWA support
 
@@ -309,7 +313,7 @@ A complete, functional v2 prototype was built February 18, 2026 as a React artif
 
 ## The Agent System
 
-Eight defined roles. Seven executed through one Claude Code instance on one codebase. The eighth (Creative Director) lives primarily in Claude Chat.
+Twelve defined roles. Seven executed through one Claude Code instance on one codebase. The Creative Director (Agent 8) lives primarily in Claude Chat. Agents 9–12 are strategy, UX, social, and optimization specialists activated as needed.
 
 ### Agent 1 — Infrastructure Architect
 **Owns:** Database, authentication, rate limiting, caching, environment config, deployment pipeline, error handling, server performance
@@ -342,6 +346,23 @@ Eight defined roles. Seven executed through one Claude Code instance on one code
 **Note:** Lives in Claude Chat. Outputs handed to Product Engineer for implementation.
 **Status:** Cinema thread architecture and questionnaire redesign complete. v2 prototype built and reviewed.
 
+### Agent 9 — Monetization Strategist *(Activated — session complete)*
+**Owns:** Revenue model design, pricing strategy, free tier decisions, affiliate strategy, launch sequencing
+**Status:** Full strategy session complete. Strategy document and Chief Strategist briefing report produced. Handoff to Chief Strategist complete.
+
+### Agent 10 — UX/UI Specialist *(Not yet activated)*
+**Owns:** Share sheet redesign spec, cold visitor landing experience spec, Pro feature visibility design, paywall UX — all translated into developer-ready specifications
+**Status:** Pending activation. Must be activated before Developer Agent implements any monetization UX.
+**Note:** UX Agent output always goes to Chief Strategist for review before going to Developer Agent.
+
+### Agent 11 — Social Media Strategy Agent *(Not yet activated)*
+**Owns:** Tweet templates, hashtag matrix, Reddit participation playbook, founder post templates, Film Twitter outreach scripts, posting cadence for launch window
+**Status:** Pending activation. Can run in parallel with UX Agent (Agent 10).
+
+### Agent 12 — Conversion Optimization Agent *(Pending — activate after launch)*
+**Owns:** Analytics interpretation, conversion funnel analysis, pricing and free tier optimization based on real data
+**Status:** Do not activate until 30 days of live traffic data exists.
+
 ---
 
 ## Execution Order & Current Status
@@ -351,12 +372,15 @@ Eight defined roles. Seven executed through one Claude Code instance on one code
 | 1 | Infrastructure Architect | Supabase database, rate limiting, error recovery | ✅ COMPLETED Feb 13 |
 | 2 | Product Engineer | Shareable URLs, share button, rate limit UX | ✅ COMPLETED Feb 13 |
 | 2.5 | Agent 1 + Agent 2 | Pre-launch performance fixes + mobile-native experience | ✅ COMPLETED Feb 25 (cold start cron blocked by Hobby plan; UptimeRobot setup pending) |
-| **3** | **Creative Director + Product Engineer** | **v2 port: four thread types, new questionnaire, UI/UX overhaul** | **← NEXT SESSION** |
+| 2.6 | UX Agent → Developer Agent | Monetization UX: share sheet redesign, cold visitor CTA, Pro visibility before paywall | NEXT (requires UX Agent activation first) |
+| 2.7 | Social Media Agent | Full content arsenal: tweet templates, Reddit playbook, founder post templates, outreach scripts | NEXT (runs in parallel with 2.6) |
+| 2.8 | Developer Agent | Stripe + paywall (subscription + LTD) + free tier reduced 5→3 searches | After UX specs from 2.6 are ready |
+| **3** | **Creative Director + Product Engineer** | **v2 port: four thread types, new questionnaire, UI/UX overhaul** | **Pending** |
 | 4 | Analytics & Optimization | Plausible/PostHog, event tracking, API cost monitoring | Pending |
 | 5 | Legal & Compliance | ToS, privacy policy, cookie consent | Pending |
-| 6 | Growth & Marketing | Reddit launch, Film Twitter, Letterboxd, OG tags, SEO | Pending |
+| 6 | Growth & Marketing | Community launch — Reddit + Film Twitter push (after all pre-launch items complete) | Pending |
 | 7 | Data Quality & Enrichment | TMDB integration, validation, caching | Pending |
-| 8 | Monetization & Business Ops | Stripe, subscriptions, affiliate links | Pending |
+| 8 | Monetization & Business Ops | Auth system (required for subscriptions), affiliate link embedding | Pending |
 
 ### Step 2.5 — Pre-Launch Performance Fixes — What Actually Shipped
 
@@ -400,26 +424,101 @@ Eight defined roles. Seven executed through one Claude Code instance on one code
 
 ## Monetization Plan
 
-### Phase 1 — Build the Audience (Months 0-3)
-- Free tier: 5 explorations per day (implemented)
-- Shareable constellation URLs (✅ implemented)
-- Seed target communities
-- Basic analytics
+*Strategy confirmed Feb 25, 2026 — Monetization Strategist session complete.*
 
-### Phase 2 — Subscription for Power Users (Months 2-4)
-- Price: $4-6/month or $36-40/year
-- Unlocks: unlimited explorations, saved constellations, deep dive mode, streaming overlay, multi-seed search
+---
 
-### Phase 3 — Affiliate Revenue (Months 3-6)
-- Every film links to where you can watch/buy it
-- Apple TV, Amazon, Vudu affiliate programs
+### Revenue Stream 1 — Freemium Subscription *(Primary recurring revenue)*
+- **Price:** $6/month or $49/year
+- Unlocks unlimited searches and Pro features
+- Primary recurring revenue engine
+- Requires user authentication system to be built first — cannot launch until auth exists
 
-### Phase 4 — API / B2B (Month 6+)
-- License thematic engine to streaming platforms
+### Revenue Stream 2 — Lifetime Deal (LTD) *(First to launch)*
+- **Price:** $79 one-time payment
+- **Cap:** 100 seats maximum
+- **Purpose:** Bootstrap capital to fund authentication system development
+- Launch before subscription infrastructure is complete — no auth required to sell
+- Buyers need user accounts to log in and access unlimited searches — accounts must exist at LTD fulfillment
+- CEO must confirm seat cap (100 seats recommended)
+
+### Revenue Stream 3 — Affiliate Links *(Passive, scales with traffic)*
+- **Mubi affiliate program** — priority integration
+- **Amazon Associates** — secondary
+- Embedded in film results alongside each movie
+- Passive revenue that scales with traffic — no developer work required to apply
+- **CEO action required:** Apply to both programs directly
+
+### Free Tier
+- **Current:** 5 searches per 24 hours
+- **Approved change:** 3 searches per 24 hours
+- This is the primary conversion lever — pending Developer Agent implementation (Step 2.8)
+
+---
+
+### Growth Engine
+
+The shareable constellation URL is the primary growth mechanism:
+
+> User generates constellation → shares URL → cold visitor lands on map → experiences product → hits free tier limit → sees Pro offer → converts
+
+Every distribution decision exists to seed the top of this chain.
+
+---
+
+### Social Media Strategy
+
+**Twitter/X — Primary distribution channel**
+- Film Twitter is the priority community
+- Posts show the product working — specific film, specific thread name, specific constellation
+- Never reads as product promotion — the artifact is the pitch
+- High-leverage tactic: reply to "what should I watch" posts with a real Filament constellation as a genuine response
+- Requires a dedicated Filament Twitter/X account *(CEO action)*
+
+**Reddit — Second priority**
+- Reply-based participation only — not cold link drops
+- Generate constellations as genuine responses to recommendation requests
+- Target subreddits: r/MovieSuggestions, r/TrueFilm, r/Letterboxd, r/criterion, r/television
+- One honest founder post per subreddit during launch window
+- All Reddit activity is manual — never automated
+
+**Facebook — Not recommended** (audience mismatch)
+
+**Instagram — Not recommended at this stage** (link mechanics create conversion barriers)
+
+---
+
+### Launch Sequencing — Confirmed Order
+
+**Step 1 — Before any public posting (all required):**
+- Free tier reduced to 3 searches per 24 hours
+- Stripe paywall live (subscription + LTD)
+- Share sheet redesign complete (Copy Link + Tweet This)
+- Cold visitor CTA live on shared constellation pages
+
+**Step 2 — Launch week:**
+- CEO posts first constellation on Filament Twitter account
+- CEO begins monitoring r/MovieSuggestions and r/TrueFilm for reply opportunities
+- Honest founder post submitted to r/Letterboxd and r/TrueFilm
+
+**Step 3 — Ongoing during launch window:**
+- Daily reply activity on relevant Reddit threads
+- Regular constellation posts on Twitter with specific thread names highlighted
+- Manual outreach to 5–10 Film Twitter accounts with real audiences
+
+---
+
+### CEO Action Items *(Cannot be delegated to agents)*
+- Apply to Mubi affiliate program
+- Apply to Amazon Associates
+- Create Filament Twitter/X account if it doesn't exist
+- Confirm LTD seat cap (100 seats recommended)
+- Set up Stripe account
+
+---
 
 ### Cost Structure
 - Per constellation: ~$0.01-0.03 with max_tokens 4500 — monitor actual costs via token logs in Vercel dashboard
-- 1,000 daily users × 5 searches/day: ~$50-150/month
 - Vercel free tier covers initial hosting
 - Supabase free tier covers initial database
 
@@ -509,14 +608,16 @@ Eight defined roles. Seven executed through one Claude Code instance on one code
 - [x] **Response time regression identified and fixed** — Constraining prompt rule rewritten to simple heuristic, max_tokens 8000→4500, conciseness rule added (2-3 sentence desc cap, 3500 token budget), token usage logging added to Vercel function logs. Response times: 44-57s → 35-44s (Feb 25, 2026)
 - [x] **Loading screen time expectation updated** — Message changed to "This can take up to a minute, we're doing the deep work" to reflect honest current performance (Feb 25, 2026)
 - [x] **Mobile-native experience deployed** — Touch-aware node selection, bottom sheet detail panel, horizontal pill scroll, disabled drag, pinch-zoom prevention, responsive typography, isMobile breakpoint at 768px. Tested on Pixel 10 Pro / Chrome (Feb 25, 2026)
+- [x] **Monetization strategy session complete** — LTD + subscription model confirmed ($79 LTD / $6 month / $49 year), 3-search free tier approved, social strategy confirmed (Film Twitter primary, Reddit secondary), UX requirements identified (share sheet, cold visitor CTA, Pro visibility), launch sequencing established, CEO action items defined (Feb 25, 2026)
 
 ### In Progress
 - [ ] *Nothing currently in progress*
 
 ### Up Next
-- [ ] **UptimeRobot cold start prevention** — Free external pinger, no code required, ~5 minutes to set up at uptimerobot.com
-- [ ] **Step 3: Product Redesign — Session 1** — New questionnaire with buildGuidePrompt compilation, improved error handling, backward compatibility for v1 shared URLs
-- [ ] **Step 3: Product Redesign — Session 2** — Onboarding overlay, thread pills with type icons and explanation cards, detail panel hierarchy overhaul, help button, hint text refinements
-- [ ] **Step 4:** Analytics (Plausible or PostHog)
-- [ ] **Step 5:** Legal (ToS, Privacy Policy)
-- [ ] **Step 6:** Community launch (Reddit, Film Twitter, Letterboxd)
+1. **Activate UX Agent (Agent 10)** — design specifications for share sheet redesign, cold visitor CTA, and Pro feature visibility before paywall *(Chief Strategist writes activation prompt)*
+2. **Activate Social Media Agent (Agent 11)** — tweet templates, Reddit playbook, founder post templates, launch content *(runs in parallel with UX Agent)*
+3. **CEO: Apply to Mubi and Amazon Associates affiliates**
+4. **CEO: Confirm Filament Twitter/X account exists**
+5. **CEO: Confirm LTD seat cap (100 seats)**
+6. **UptimeRobot cold start prevention** — free external pinger, no code required, ~5 minutes to set up at uptimerobot.com
+7. **Step 3: v2 port** — four thread types, new questionnaire, UI/UX overhaul
