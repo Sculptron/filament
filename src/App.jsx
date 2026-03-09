@@ -56,6 +56,22 @@ async function fetchConstellation(prompt, searchType = 'title') {
   return res.json();
 }
 
+// === FETCH TEASERS ===
+async function fetchTeasers(prompt) {
+  try {
+    const res = await fetch("/api/teasers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.teasers || null;
+  } catch {
+    return null;
+  }
+}
+
 // === FETCH SHARED CONSTELLATION ===
 async function fetchSharedConstellation(shareId) {
   const res = await fetch(`/api/shared?shareId=${shareId}`);
@@ -128,8 +144,8 @@ function FilamentBG({ intensity = 1 }) {
       for (let col=-1; col<w/spacing+2; col++) {
         const isOff = row%2===1;
         const bx = col*spacing+(isOff?spacing*0.5:0), by = row*spacing;
-        if (Math.random()<0.4) continue;
-        nodes.push({ bx, by, x:bx, y:by, ox:(Math.random()-.5)*12, oy:(Math.random()-.5)*12, r:1+Math.random()*1.2, color:TCOLORS[Math.floor(Math.random()*TCOLORS.length)], phase:Math.random()*Math.PI*2, breathSpeed:0.008+Math.random()*0.012, baseAlpha:0.12+Math.random()*0.18 });
+        if (Math.random()<0.18) continue;
+        nodes.push({ bx, by, x:bx, y:by, ox:(Math.random()-.5)*12, oy:(Math.random()-.5)*12, r:1.4+Math.random()*1.7, color:TCOLORS[Math.floor(Math.random()*TCOLORS.length)], phase:Math.random()*Math.PI*2, breathSpeed:0.008+Math.random()*0.012, baseAlpha:0.22+Math.random()*0.28 });
       }
     }
     nodesRef.current = nodes;
@@ -144,8 +160,8 @@ function FilamentBG({ intensity = 1 }) {
       timeRef.current+=1; const {w,h}=dimRef.current; ctx.clearRect(0,0,w,h);
       const mx=mouseRef.current.x, my=mouseRef.current.y, t=timeRef.current;
       for(let n of nodes){const b=Math.sin(t*n.breathSpeed+n.phase); n.x=n.bx+n.ox+b*3; n.y=n.by+n.oy+Math.cos(t*n.breathSpeed*0.7+n.phase)*3;}
-      for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy); if(d>maxLD)continue; const midX=(a.x+b.x)/2,midY=(a.y+b.y)/2,mdx=mx-midX,mdy=my-midY,md=Math.sqrt(mdx*mdx+mdy*mdy),prox=Math.max(0,1-md/200),fade=1-d/maxLD,alpha=(0.03+fade*0.04+prox*0.12)*intensity; ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=a.color;ctx.globalAlpha=alpha;ctx.lineWidth=0.5+prox*0.5;ctx.stroke();}
-      for(let n of nodes){const dx=mx-n.x,dy=mx>-500?my-n.y:1000,d=Math.sqrt(dx*dx+dy*dy),prox=Math.max(0,1-d/180),breath=Math.sin(t*n.breathSpeed+n.phase)*0.5+0.5,alpha=(n.baseAlpha*0.4+breath*0.15+prox*0.5)*intensity,radius=n.r+prox*2; if(prox>0.1){ctx.beginPath();ctx.arc(n.x,n.y,radius+6*prox,0,Math.PI*2);const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,radius+6*prox);g.addColorStop(0,n.color);g.addColorStop(1,"transparent");ctx.fillStyle=g;ctx.globalAlpha=prox*0.25*intensity;ctx.fill();} ctx.beginPath();ctx.arc(n.x,n.y,radius,0,Math.PI*2);ctx.fillStyle=n.color;ctx.globalAlpha=alpha;ctx.fill();}
+      for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy); if(d>maxLD)continue; const midX=(a.x+b.x)/2,midY=(a.y+b.y)/2,mdx=mx-midX,mdy=my-midY,md=Math.sqrt(mdx*mdx+mdy*mdy),prox=Math.max(0,1-md/200),fade=1-d/maxLD,alpha=(0.06+fade*0.06+prox*0.12)*intensity; ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=a.color;ctx.globalAlpha=alpha;ctx.lineWidth=0.5+prox*0.5;ctx.stroke();}
+      for(let n of nodes){const dx=mx-n.x,dy=mx>-500?my-n.y:1000,d=Math.sqrt(dx*dx+dy*dy),prox=Math.max(0,1-d/180),breath=Math.sin(t*n.breathSpeed+n.phase)*0.5+0.5,alpha=(n.baseAlpha*0.4+breath*0.30+prox*0.7)*intensity,radius=n.r+prox*2; if(prox>0.1){ctx.beginPath();ctx.arc(n.x,n.y,radius+8*prox,0,Math.PI*2);const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,radius+8*prox);g.addColorStop(0,n.color);g.addColorStop(1,"transparent");ctx.fillStyle=g;ctx.globalAlpha=prox*0.35*intensity;ctx.fill();} ctx.beginPath();ctx.arc(n.x,n.y,radius,0,Math.PI*2);ctx.fillStyle=n.color;ctx.globalAlpha=alpha;ctx.fill();}
       ctx.globalAlpha=1; animRef.current=requestAnimationFrame(draw);
     };
     animRef.current=requestAnimationFrame(draw);
@@ -155,7 +171,7 @@ function FilamentBG({ intensity = 1 }) {
 }
 
 // === LOADING ANIMATION ===
-const LOADING_PHRASES = [
+const GENERIC_PHRASES = [
   "Pulling on thematic threads",
   "Mapping hidden connections",
   "Diving beneath the surface",
@@ -166,40 +182,107 @@ const LOADING_PHRASES = [
   "Connecting distant constellations",
   "Unearthing hidden gems",
   "Weaving your discovery map",
-  "Almost there — assembling your constellation",
 ];
 
-function LoadingView({ searchQuery, isGuided }) {
-  const [idx, setIdx] = useState(0);
+const ESCALATING_PHRASES = [
+  "Almost there...",
+  "Searching across a century of cinema...",
+  "Exploring every frame in every archive...",
+];
+
+const INITIAL_STATUS_HOLD = 6000;
+const TEASER_TRIGGER_DELAY = 1200;
+const SENTENCE_INTERVAL = 4500;
+const FADE_DURATION = 400;
+
+function LoadingView({ searchQuery, isGuided, teasers }) {
+  const [text, setText] = useState("Finding your constellation...");
   const [fade, setFade] = useState(true);
-  const [dots, setDots] = useState("");
+  const [isTeaser, setIsTeaser] = useState(false);
 
+  const queueRef = useRef([]);
+  const posRef = useRef(-1);
+  const teasersAppliedRef = useRef(false);
+  const timerRef = useRef(null);
+  const mountedRef = useRef(true);
+  const teaserSetRef = useRef(new Set());
+
+  const advance = () => {
+    if (!mountedRef.current) return;
+    const queue = queueRef.current;
+    const nextPos = posRef.current + 1;
+
+    if (nextPos >= queue.length) return; // hold last phrase
+
+    setFade(false);
+    setTimeout(() => {
+      if (!mountedRef.current) return;
+      posRef.current = nextPos;
+      const nextText = queue[nextPos];
+      setText(nextText);
+      setIsTeaser(teaserSetRef.current.has(nextText));
+      setFade(true);
+
+      // Schedule next advance unless this is the last phrase
+      if (nextPos < queue.length - 1) {
+        timerRef.current = setTimeout(advance, SENTENCE_INTERVAL);
+      }
+    }, FADE_DURATION);
+  };
+
+  // Mount/unmount tracking
   useEffect(() => {
-    const dotIv = setInterval(() => setDots(d => d.length >= 3 ? "" : d + "."), 400);
-    return () => clearInterval(dotIv);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
+  // Path B — fallback: after INITIAL_STATUS_HOLD, start cycling generic phrases
   useEffect(() => {
-    const iv = setInterval(() => {
-      setFade(false);
-      setTimeout(() => {
-        setIdx(prev => (prev + 1) % LOADING_PHRASES.length);
-        setFade(true);
-      }, 300);
-    }, 2800);
-    return () => clearInterval(iv);
+    timerRef.current = setTimeout(() => {
+      if (!mountedRef.current || teasersAppliedRef.current) return;
+      queueRef.current = [...GENERIC_PHRASES, ...ESCALATING_PHRASES];
+      posRef.current = -1;
+      advance();
+    }, INITIAL_STATUS_HOLD);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
+
+  // Path A — teasers arrive: rebuild queue immediately
+  useEffect(() => {
+    if (!teasers || teasersAppliedRef.current) return;
+    teasersAppliedRef.current = true;
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+
+    const newQueue = [
+      "Here's a taste of what's coming...",
+      ...teasers,
+      ...ESCALATING_PHRASES,
+    ];
+    queueRef.current = newQueue;
+    posRef.current = -1;
+    teaserSetRef.current = new Set(teasers);
+
+    timerRef.current = setTimeout(advance, TEASER_TRIGGER_DELAY);
+  }, [teasers]);
+
+  const textStyle = isTeaser
+    ? { color: "#bbb", fontSize: 15.5, opacity: 0.9 }
+    : { color: "#777", fontSize: 14.5, opacity: 0.75 };
 
   return (
     <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", fontFamily:"'Inter',-apple-system,sans-serif", position:"relative", zIndex:1 }}>
-      <div style={{ textAlign:"center", maxWidth: 400 }}>
-        <div style={{ width:48, height:48, border:"2px solid #222", borderTopColor:"#C77DFF", borderRadius:"50%", animation:"spin 1s linear infinite", margin:"0 auto 28px" }} />
+      <div style={{ textAlign:"center", maxWidth: 400, padding: "0 20px" }}>
+        {/* Search query title */}
         {isGuided ? (
-          <p style={{ color:"#777", fontSize:14, fontWeight:300, letterSpacing:0.5, margin:"0 0 20px" }}>
+          <p style={{ color:"#777", fontSize:14, fontWeight:300, letterSpacing:0.5, margin:"0 0 28px" }}>
             Mapping your constellation...
           </p>
         ) : searchQuery ? (
-          <div style={{ margin:"0 0 20px" }}>
+          <div style={{ margin:"0 0 28px" }}>
             <p style={{ color:"#666", fontSize:13, fontWeight:300, margin:"0 0 6px", letterSpacing:0.3 }}>
               Mapping the constellation around
             </p>
@@ -208,27 +291,101 @@ function LoadingView({ searchQuery, isGuided }) {
             </p>
           </div>
         ) : null}
+
+        {/* Iris animation */}
+        <div style={{ width: 72, height: 72, margin: "0 auto 28px", position: "relative" }}>
+          <svg width="72" height="72" viewBox="0 0 72 72">
+            {/* Outer ring */}
+            <circle cx="36" cy="36" r="34" fill="none" stroke="#C77DFF" strokeWidth="0.8" style={{ animation: "irisRing 3.5s ease-in-out infinite" }} />
+            {/* Iris blades */}
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <g key={i} transform={`rotate(${i * 60} 36 36)`}>
+                <path
+                  d="M36,36 L28,12 Q36,6 44,12 Z"
+                  fill="#C77DFF"
+                  style={{
+                    transformOrigin: "36px 36px",
+                    animation: "irisBladeAnim 3.5s ease-in-out infinite",
+                  }}
+                />
+              </g>
+            ))}
+            {/* Center glow */}
+            <circle cx="36" cy="36" r="12" fill="url(#irisGlowGrad)" style={{ animation: "irisGlow 3.5s ease-in-out infinite" }} />
+            <defs>
+              <radialGradient id="irisGlowGrad">
+                <stop offset="0%" stopColor="#C77DFF" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#C77DFF" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+            {/* Center dot */}
+            <circle cx="36" cy="36" r="2.5" fill="#C77DFF" style={{ animation: "irisDot 3.5s ease-in-out infinite" }} />
+          </svg>
+        </div>
+
+        {/* Rotating sentence */}
         <p style={{
-          color:"#999", fontSize:14, fontWeight:300, letterSpacing:0.5, minHeight:24,
-          opacity: fade ? 1 : 0, transform: fade ? "translateY(0)" : "translateY(6px)",
-          transition: "all 0.3s ease",
+          fontFamily: "Georgia, 'Times New Roman', serif",
+          fontStyle: "italic",
+          fontWeight: 400,
+          letterSpacing: 0.3,
+          minHeight: 28,
+          margin: "0 0 12px",
+          lineHeight: 1.5,
+          ...textStyle,
+          opacity: fade ? textStyle.opacity : 0,
+          transform: fade ? "translateY(0)" : "translateY(6px)",
+          transition: `opacity ${FADE_DURATION}ms ease, transform ${FADE_DURATION}ms ease`,
         }}>
-          {LOADING_PHRASES[idx]}{dots}
+          {text}
         </p>
-        <p style={{ color:"#555", fontSize:12, fontWeight:300, margin:"12px 0 0", letterSpacing:0.3 }}>
-          This can take up to a minute, we're doing the deep work.
+
+        {/* Time expectation */}
+        <p style={{ color:"#555", fontSize:12, fontWeight:300, margin:"0 0 20px", letterSpacing:0.3 }}>
+          This can take up to a minute — we're doing the deep work.
         </p>
-        <div style={{ display:"flex", justifyContent:"center", gap:4, marginTop:20 }}>
-          {LOADING_PHRASES.slice(0, 8).map((_, i) => (
+
+        {/* Progress dots */}
+        <div style={{ display:"flex", justifyContent:"center", gap:4 }}>
+          {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} style={{
               width: 16, height: 2, borderRadius: 1,
-              background: i <= idx ? "#C77DFF" : "#222",
+              background: i <= posRef.current ? "#C77DFF" : "#222",
               transition: "background 0.5s ease",
             }} />
           ))}
         </div>
       </div>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <style>{`
+        @keyframes irisBladeAnim {
+          0%, 12% { opacity: 0.85; transform: rotate(0deg); }
+          12%, 30% { opacity: 0.6; transform: rotate(-26deg); }
+          30%, 65% { opacity: 0.5; transform: rotate(-26deg); }
+          65%, 83% { opacity: 0.85; transform: rotate(0deg); }
+          83%, 100% { opacity: 0.85; transform: rotate(0deg); }
+        }
+        @keyframes irisGlow {
+          0%, 12% { opacity: 0.05; transform: scale(0.8); }
+          12%, 30% { opacity: 0.9; transform: scale(1.1); }
+          30%, 65% { opacity: 0.9; transform: scale(1.1); }
+          65%, 83% { opacity: 0.05; transform: scale(0.8); }
+          83%, 100% { opacity: 0.05; transform: scale(0.8); }
+        }
+        @keyframes irisDot {
+          0%, 12% { opacity: 0.05; }
+          12%, 30% { opacity: 1; }
+          30%, 65% { opacity: 1; }
+          65%, 83% { opacity: 0.05; }
+          83%, 100% { opacity: 0.05; }
+        }
+        @keyframes irisRing {
+          0%, 12% { opacity: 0.3; stroke-width: 0.8; }
+          12%, 30% { opacity: 0.7; stroke-width: 1.2; }
+          30%, 65% { opacity: 0.7; stroke-width: 1.2; }
+          65%, 83% { opacity: 0.3; stroke-width: 0.8; }
+          83%, 100% { opacity: 0.3; stroke-width: 0.8; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -696,6 +853,7 @@ export default function App() {
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isGuided, setIsGuided] = useState(false);
+  const [teasers, setTeasers] = useState(null);
 
   // ============================================================
   // Check URL for shared constellation on mount
@@ -742,10 +900,15 @@ export default function App() {
     setLoading(true);
     setError(null);
     setIsRateLimited(false);
+    setTeasers(null);
     setLoadMsg("Mapping thematic connections");
     setView("loading");
 
+    // Teaser fires and resolves independently — non-critical, non-blocking
+    fetchTeasers(prompt).then(t => { if (t) setTeasers(t); }).catch(() => {});
+
     try {
+      // Constellation is awaited — critical
       const result = await fetchConstellation(prompt, searchType);
       setData(result);
       setSearchesRemaining(result.searchesRemaining);
@@ -794,6 +957,7 @@ export default function App() {
     setView("landing");
     setData(null);
     setSearchesRemaining(null);
+    setTeasers(null);
     // Clear share URL when going back
     window.history.pushState({}, '', '/');
   };
@@ -801,7 +965,7 @@ export default function App() {
   return (
     <div style={{background:"#0a0a0f",minHeight:"100vh"}}>
       <FilamentBG intensity={view==="constellation"?0.3:0.7} />
-      {view==="loading" && <LoadingView searchQuery={searchQuery} isGuided={isGuided} />}
+      {view==="loading" && <LoadingView searchQuery={searchQuery} isGuided={isGuided} teasers={teasers} />}
       {view==="constellation" && data && (
         <ConstellationView
           data={data}
