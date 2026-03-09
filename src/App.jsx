@@ -204,30 +204,44 @@ function LoadingView({ searchQuery, isGuided, teasers }) {
   const posRef = useRef(-1);
   const teasersAppliedRef = useRef(false);
   const timerRef = useRef(null);
+  const fadeTimerRef = useRef(null);
   const mountedRef = useRef(true);
   const teaserSetRef = useRef(new Set());
+  const genRef = useRef(0); // generation counter to invalidate stale timers
 
-  const advance = () => {
-    if (!mountedRef.current) return;
-    const queue = queueRef.current;
-    const nextPos = posRef.current + 1;
+  const clearAllTimers = () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    if (fadeTimerRef.current) { clearTimeout(fadeTimerRef.current); fadeTimerRef.current = null; }
+  };
 
-    if (nextPos >= queue.length) return; // hold last phrase
+  const startQueue = (queue, teaserSet) => {
+    clearAllTimers();
+    const gen = ++genRef.current;
+    queueRef.current = queue;
+    posRef.current = -1;
+    teaserSetRef.current = teaserSet;
 
-    setFade(false);
-    setTimeout(() => {
-      if (!mountedRef.current) return;
-      posRef.current = nextPos;
-      const nextText = queue[nextPos];
-      setText(nextText);
-      setIsTeaser(teaserSetRef.current.has(nextText));
-      setFade(true);
+    const advance = () => {
+      if (!mountedRef.current || genRef.current !== gen) return;
+      const nextPos = posRef.current + 1;
+      if (nextPos >= queueRef.current.length) return;
 
-      // Schedule next advance unless this is the last phrase
-      if (nextPos < queue.length - 1) {
-        timerRef.current = setTimeout(advance, SENTENCE_INTERVAL);
-      }
-    }, FADE_DURATION);
+      setFade(false);
+      fadeTimerRef.current = setTimeout(() => {
+        if (!mountedRef.current || genRef.current !== gen) return;
+        posRef.current = nextPos;
+        const nextText = queueRef.current[nextPos];
+        setText(nextText);
+        setIsTeaser(teaserSetRef.current.has(nextText));
+        setFade(true);
+
+        if (nextPos < queueRef.current.length - 1) {
+          timerRef.current = setTimeout(advance, SENTENCE_INTERVAL);
+        }
+      }, FADE_DURATION);
+    };
+
+    return advance;
   };
 
   // Mount/unmount tracking
@@ -235,7 +249,7 @@ function LoadingView({ searchQuery, isGuided, teasers }) {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      if (timerRef.current) clearTimeout(timerRef.current);
+      clearAllTimers();
     };
   }, []);
 
@@ -243,11 +257,10 @@ function LoadingView({ searchQuery, isGuided, teasers }) {
   useEffect(() => {
     timerRef.current = setTimeout(() => {
       if (!mountedRef.current || teasersAppliedRef.current) return;
-      queueRef.current = [...GENERIC_PHRASES, ...ESCALATING_PHRASES];
-      posRef.current = -1;
+      const advance = startQueue([...GENERIC_PHRASES, ...ESCALATING_PHRASES], new Set());
       advance();
     }, INITIAL_STATUS_HOLD);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => clearAllTimers();
   }, []);
 
   // Path A — teasers arrive: rebuild queue immediately
@@ -255,16 +268,12 @@ function LoadingView({ searchQuery, isGuided, teasers }) {
     if (!teasers || teasersAppliedRef.current) return;
     teasersAppliedRef.current = true;
 
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    const newQueue = [
+    const teaserSet = new Set(teasers);
+    const advance = startQueue([
       "Here's a taste of what's coming...",
       ...teasers,
       ...ESCALATING_PHRASES,
-    ];
-    queueRef.current = newQueue;
-    posRef.current = -1;
-    teaserSetRef.current = new Set(teasers);
+    ], teaserSet);
 
     timerRef.current = setTimeout(advance, TEASER_TRIGGER_DELAY);
   }, [teasers]);
@@ -345,16 +354,6 @@ function LoadingView({ searchQuery, isGuided, teasers }) {
           This can take up to a minute — we're doing the deep work.
         </p>
 
-        {/* Progress dots */}
-        <div style={{ display:"flex", justifyContent:"center", gap:4 }}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} style={{
-              width: 16, height: 2, borderRadius: 1,
-              background: i <= posRef.current ? "#C77DFF" : "#222",
-              transition: "background 0.5s ease",
-            }} />
-          ))}
-        </div>
       </div>
       <style>{`
         @keyframes irisBladeAnim {

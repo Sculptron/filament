@@ -37,20 +37,32 @@ Rules:
 
     const data = await response.json();
 
-    if (!response.ok || !data.content || !Array.isArray(data.content)) {
+    if (!response.ok) {
+      console.error("Teasers API error:", response.status, JSON.stringify(data).slice(0, 300));
+      return res.status(200).json({ teasers: null });
+    }
+
+    if (!data.content || !Array.isArray(data.content)) {
+      console.error("Teasers unexpected shape:", JSON.stringify(data).slice(0, 300));
       return res.status(200).json({ teasers: null });
     }
 
     const text = data.content.map((item) => item.text || "").join("");
     const clean = text.replace(/```json|```/g, "").trim();
+
+    console.log("Teasers raw response:", clean.slice(0, 300));
+
     const parsed = JSON.parse(clean);
 
     if (!parsed.teasers || !Array.isArray(parsed.teasers)) {
+      console.error("Teasers missing array in parsed JSON");
       return res.status(200).json({ teasers: null });
     }
 
+    console.log("Teasers success:", parsed.teasers.length, "items");
     return res.status(200).json({ teasers: parsed.teasers });
-  } catch {
+  } catch (err) {
+    console.error("Teasers catch-all error:", err.message || err);
     return res.status(200).json({ teasers: null });
   }
 }
