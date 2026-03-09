@@ -556,18 +556,9 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
             <div key={th.id} style={{width:10,height:10,borderRadius:"50%",background:TCOLORS[i%TCOLORS.length],opacity:0.8}}/>
           ))}
         </div>
-        <h2 style={{fontSize:28,fontWeight:300,color:"#fff",margin:"0 0 16px",textAlign:"center",lineHeight:1.4,maxWidth:480}}>
+        <h2 style={{fontSize:28,fontWeight:300,color:"#fff",margin:"0 0 40px",textAlign:"center",lineHeight:1.4,maxWidth:480}}>
           We found {mc} films connected by {tc} invisible threads
         </h2>
-        <p style={{fontSize:14,color:"#555",margin:isMobile?"0":"0 0 40px",textAlign:"center",maxWidth:420,lineHeight:1.7,fontWeight:300}}>
-          Shared obsessions, cinematic lineages, and feelings that echo across decades.{" "}
-          {isMobile ? "Tap any film to see why it belongs here." : "Click any movie or TV show to see why it belongs here."}
-        </p>
-        {isMobile && (
-          <p style={{fontSize:13,color:"#666",margin:"8px 0 40px",textAlign:"center",fontWeight:300}}>
-            Swipe the threads above to explore connections.
-          </p>
-        )}
         <button onClick={()=>setShowOnboard(false)}
           style={{background:"#C77DFF18",border:"1px solid #C77DFF44",borderRadius:10,padding:"12px 36px",color:"#C77DFF",fontSize:14,cursor:"pointer",letterSpacing:1,fontFamily:"inherit",transition:"all 0.3s"}}
           onMouseEnter={e=>{e.currentTarget.style.background="#C77DFF28";e.currentTarget.style.borderColor="#C77DFF66";}}
