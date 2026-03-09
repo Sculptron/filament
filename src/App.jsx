@@ -561,7 +561,7 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
         </h2>
         <p style={{fontSize:14,color:"#555",margin:isMobile?"0":"0 0 40px",textAlign:"center",maxWidth:420,lineHeight:1.7,fontWeight:300}}>
           Shared obsessions, cinematic lineages, and feelings that echo across decades.{" "}
-          {isMobile ? "Tap any film to see why it belongs here." : "Click any film to see why it belongs here."}
+          {isMobile ? "Tap any film to see why it belongs here." : "Click any movie or TV show to see why it belongs here."}
         </p>
         {isMobile && (
           <p style={{fontSize:13,color:"#666",margin:"8px 0 40px",textAlign:"center",fontWeight:300}}>
@@ -606,7 +606,7 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
       {showHelp && (
         <div style={{margin:"0 20px 8px",background:"#0e0e18cc",backdropFilter:"blur(12px)",border:"1px solid #333",borderRadius:10,padding:"12px 16px",maxWidth:580}}>
           <p style={{fontSize:12,color:"#888",margin:"0 0 6px",lineHeight:1.6}}>Each circle is a film or show. The colored lines between them are <em>threads</em> — shared feelings, craft techniques, creative philosophies, and cinematic lineages that connect stories at a deeper level than genre.</p>
-          <p style={{fontSize:12,color:"#666",margin:0,lineHeight:1.6}}>Click any film to see why it belongs here. Use the thread pills above the map to isolate specific connections. Drag nodes to rearrange.</p>
+          <p style={{fontSize:12,color:"#666",margin:0,lineHeight:1.6}}>Click any movie or TV show to see why it belongs here. Use the thread pills above the map to isolate specific connections. Drag nodes to rearrange.</p>
         </div>
       )}
       {/* Thread filters */}
@@ -669,7 +669,7 @@ function ConstellationView({ data, onBack, searchesRemaining }) {
           })}
         </svg>
         {hint && !selected && (
-          <p style={{textAlign:"center",fontSize:11,color:"#333",margin:"6px 0 0",letterSpacing:0.5,pointerEvents:"none"}}>{isMobile ? "tap a movie to explore" : "click a movie to explore · drag to rearrange"}</p>
+          <p style={{textAlign:"center",fontSize:11,color:"#333",margin:"6px 0 0",letterSpacing:0.5,pointerEvents:"none"}}>{isMobile ? "tap a movie to explore" : "click a movie or TV show to explore · drag to rearrange"}</p>
         )}
         {selected && (isMobile ? (
           // MOBILE: Bottom sheet
@@ -821,12 +821,10 @@ function Landing({ onExplore, onGuide }) {
         <h1 style={{fontSize:46,fontWeight:200,letterSpacing:12,margin:0,color:"#fff",textTransform:"uppercase"}}>Filament</h1>
         <p style={{fontSize:14,color:"#555",margin:"8px 0 0",letterSpacing:3}}>thematic discovery map</p>
         <p style={{fontSize:15,color:"#666",margin:"36px 0 44px",lineHeight:1.8,fontWeight:300}}>
-          Every great movie is connected to another by invisible threads — 
-          a shared feeling, a kindred mythology, a familiar ache. 
-          Filament maps those threads so you can find what you're really looking for.
+          Find films you didn't know you were looking for.
         </p>
         <div style={{marginBottom:44}}>
-          <p style={{fontSize:11,color:"#555",textTransform:"uppercase",letterSpacing:2,margin:"0 0 10px"}}>Start with a movie you love</p>
+          <p style={{fontSize:11,color:"#555",textTransform:"uppercase",letterSpacing:2,margin:"0 0 10px"}}>Start with a movie or show you love</p>
           <div style={{display:"flex",gap:0,maxWidth:440,margin:"0 auto"}}>
             <input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==="Enter"&&query.trim()&&onExplore(query.trim())}
               placeholder="e.g. The Terror, Alien, Arrival..."
