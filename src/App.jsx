@@ -304,31 +304,45 @@ function LoadingView({ searchQuery, isGuided, teasers }) {
         {/* Iris animation */}
         <div style={{ width: 72, height: 72, margin: "0 auto 28px", position: "relative" }}>
           <svg width="72" height="72" viewBox="0 0 72 72">
-            {/* Outer ring */}
-            <circle cx="36" cy="36" r="34" fill="none" stroke="#C77DFF" strokeWidth="0.8" style={{ animation: "irisRing 3.5s ease-in-out infinite" }} />
-            {/* Iris blades */}
-            {[0, 1, 2, 3, 4, 5].map(i => (
-              <g key={i} transform={`rotate(${i * 60} 36 36)`}>
-                <path
-                  d="M36,36 L28,12 Q36,6 44,12 Z"
-                  fill="#C77DFF"
-                  style={{
-                    transformOrigin: "36px 36px",
-                    animation: "irisBladeAnim 3.5s ease-in-out infinite",
-                  }}
-                />
-              </g>
-            ))}
-            {/* Center glow */}
-            <circle cx="36" cy="36" r="12" fill="url(#irisGlowGrad)" style={{ animation: "irisGlow 3.5s ease-in-out infinite" }} />
             <defs>
               <radialGradient id="irisGlowGrad">
                 <stop offset="0%" stopColor="#C77DFF" stopOpacity="0.9" />
+                <stop offset="60%" stopColor="#C77DFF" stopOpacity="0.3" />
                 <stop offset="100%" stopColor="#C77DFF" stopOpacity="0" />
               </radialGradient>
             </defs>
+            {/* Center glow — behind blades */}
+            <circle cx="36" cy="36" r="18" fill="url(#irisGlowGrad)" style={{ animation: "irisGlow 3.5s ease-in-out infinite" }} />
+            {/* 6 aperture blades — each pre-rotated, pivots at outer anchor */}
+            {[0,1,2,3,4,5].map(i => {
+              const a = i * Math.PI / 3;
+              const cs = Math.cos(a), sn = Math.sin(a);
+              const rot = (x, y) => {
+                const dx = x - 36, dy = y - 36;
+                return [+(36 + dx*cs - dy*sn).toFixed(1), +(36 + dx*sn + dy*cs).toFixed(1)];
+              };
+              const v = [rot(36,3), rot(18,32), rot(30,50), rot(44,16)];
+              const pv = rot(36,3);
+              return (
+                <path
+                  key={i}
+                  d={`M${v[0][0]},${v[0][1]} L${v[1][0]},${v[1][1]} L${v[2][0]},${v[2][1]} L${v[3][0]},${v[3][1]} Z`}
+                  fill="#C77DFF"
+                  fillOpacity="0.15"
+                  stroke="#C77DFF"
+                  strokeWidth="0.5"
+                  strokeOpacity="0.35"
+                  style={{
+                    transformOrigin: `${pv[0]}px ${pv[1]}px`,
+                    animation: "irisBladeAnim 3.5s ease-in-out infinite",
+                  }}
+                />
+              );
+            })}
             {/* Center dot */}
             <circle cx="36" cy="36" r="2.5" fill="#C77DFF" style={{ animation: "irisDot 3.5s ease-in-out infinite" }} />
+            {/* Outer ring */}
+            <circle cx="36" cy="36" r="34" fill="none" stroke="#C77DFF" strokeWidth="0.8" style={{ animation: "irisRing 3.5s ease-in-out infinite" }} />
           </svg>
         </div>
 
@@ -357,32 +371,32 @@ function LoadingView({ searchQuery, isGuided, teasers }) {
       </div>
       <style>{`
         @keyframes irisBladeAnim {
-          0%, 12% { opacity: 0.85; transform: rotate(0deg); }
-          12%, 30% { opacity: 0.6; transform: rotate(-26deg); }
-          30%, 65% { opacity: 0.5; transform: rotate(-26deg); }
-          65%, 83% { opacity: 0.85; transform: rotate(0deg); }
-          83%, 100% { opacity: 0.85; transform: rotate(0deg); }
+          0%, 12%  { transform: rotate(0deg); }
+          30%      { transform: rotate(32deg); }
+          65%      { transform: rotate(32deg); }
+          83%      { transform: rotate(0deg); }
+          100%     { transform: rotate(0deg); }
         }
         @keyframes irisGlow {
-          0%, 12% { opacity: 0.05; transform: scale(0.8); }
-          12%, 30% { opacity: 0.9; transform: scale(1.1); }
-          30%, 65% { opacity: 0.9; transform: scale(1.1); }
-          65%, 83% { opacity: 0.05; transform: scale(0.8); }
-          83%, 100% { opacity: 0.05; transform: scale(0.8); }
+          0%, 12%  { opacity: 0.05; transform: scale(0.7); }
+          30%      { opacity: 1; transform: scale(1.15); }
+          65%      { opacity: 1; transform: scale(1.15); }
+          83%      { opacity: 0.05; transform: scale(0.7); }
+          100%     { opacity: 0.05; transform: scale(0.7); }
         }
         @keyframes irisDot {
-          0%, 12% { opacity: 0.05; }
-          12%, 30% { opacity: 1; }
-          30%, 65% { opacity: 1; }
-          65%, 83% { opacity: 0.05; }
-          83%, 100% { opacity: 0.05; }
+          0%, 12%  { opacity: 0.05; }
+          30%      { opacity: 1; }
+          65%      { opacity: 1; }
+          83%      { opacity: 0.05; }
+          100%     { opacity: 0.05; }
         }
         @keyframes irisRing {
-          0%, 12% { opacity: 0.3; stroke-width: 0.8; }
-          12%, 30% { opacity: 0.7; stroke-width: 1.2; }
-          30%, 65% { opacity: 0.7; stroke-width: 1.2; }
-          65%, 83% { opacity: 0.3; stroke-width: 0.8; }
-          83%, 100% { opacity: 0.3; stroke-width: 0.8; }
+          0%, 12%  { opacity: 0.3; stroke-width: 0.8; }
+          30%      { opacity: 0.7; stroke-width: 1.2; }
+          65%      { opacity: 0.7; stroke-width: 1.2; }
+          83%      { opacity: 0.3; stroke-width: 0.8; }
+          100%     { opacity: 0.3; stroke-width: 0.8; }
         }
       `}</style>
     </div>
