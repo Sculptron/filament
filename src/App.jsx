@@ -694,7 +694,7 @@ function ConstellationView({ data, onBack, searchesRemaining, searchQuery, coldV
   };
 
   // === SHARE HELPERS ===
-  const shareUrl = data.shareId ? `${window.location.origin}/c/${data.shareId}` : null;
+  const shareUrl = data.shareId ? `https://watchfilament.com/c/${data.shareId}` : null;
   const searchedTitle = searchQuery || data.movies?.[0]?.title || 'a film';
   const firstThread = data.themes?.[0];
 
