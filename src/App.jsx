@@ -701,8 +701,8 @@ function ConstellationView({ data, onBack, searchesRemaining, searchQuery, coldV
   const buildTweetUrl = () => {
     if (!shareUrl) return null;
     const tweetText = searchedTitle && searchedTitle !== 'a film'
-      ? `Typed "${searchedTitle}" into this film discovery tool. The thematic rabbit hole it came back with — I've never seen anything like it. ${shareUrl} #FilmTwitter`
-      : `Typed a film into this discovery tool. The thematic rabbit hole it came back with — I've never seen anything like it. ${shareUrl} #FilmTwitter`;
+      ? `Typed '${searchedTitle}' into this film discovery tool. The thematic rabbit hole it came back with... I've never seen anything like it. ${shareUrl} #FilmTwitter`
+      : `Typed a film into this discovery tool. The thematic rabbit hole it came back with... I've never seen anything like it. ${shareUrl} #FilmTwitter`;
     return `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
   };
 
