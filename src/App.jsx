@@ -700,16 +700,9 @@ function ConstellationView({ data, onBack, searchesRemaining, searchQuery, coldV
 
   const buildTweetUrl = () => {
     if (!shareUrl) return null;
-    let tweetText;
-    if (firstThread) {
-      tweetText = `just mapped "${searchedTitle}" on Filament and got a constellation connected by "${firstThread.name}" — this thing is uncanny ${shareUrl} #FilmTwitter`;
-      const titleHashtag = '#' + searchedTitle.replace(/[^a-zA-Z0-9]/g, '');
-      if (280 - tweetText.length - 1 - titleHashtag.length >= 0) {
-        tweetText += ` ${titleHashtag}`;
-      }
-    } else {
-      tweetText = `just mapped "${searchedTitle}" on Filament — the connections it found are uncanny ${shareUrl} #FilmTwitter`;
-    }
+    const tweetText = searchedTitle && searchedTitle !== 'a film'
+      ? `Typed "${searchedTitle}" into this film discovery tool. The thematic rabbit hole it came back with — I've never seen anything like it. ${shareUrl} #FilmTwitter`
+      : `Typed a film into this discovery tool. The thematic rabbit hole it came back with — I've never seen anything like it. ${shareUrl} #FilmTwitter`;
     return `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
   };
 
