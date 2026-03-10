@@ -258,7 +258,7 @@ function LoadingView({ searchQuery, isGuided, teasers }) {
   }, []);
 
   useEffect(() => {
-    if (!teasers || teasersAppliedRef.current) return;
+    if (!teasers || !teasers.length || teasersAppliedRef.current) return;
     teasersAppliedRef.current = true;
 
     const teaserSet = new Set(teasers);
@@ -1316,7 +1316,7 @@ export default function App() {
   };
 
   // Perform new search (title or guided)
-  const doSearch = async (prompt, searchType = 'title') => {
+  const doSearch = async (prompt, searchType = 'title', teaserHint = null) => {
     // Block search if rate limit reached
     if (searchesRemaining === 0) {
       setPaywallContext('blocked');
@@ -1329,7 +1329,7 @@ export default function App() {
     setLoadMsg("Mapping thematic connections");
     setView("loading");
 
-    fetchTeasers(prompt).then(t => { if (t) setTeasers(t); }).catch(() => {});
+    fetchTeasers(teaserHint || prompt).then(t => { if (t && t.length) setTeasers(t); }).catch(() => {});
 
     try {
       const result = await fetchConstellation(prompt, searchType);
@@ -1360,14 +1360,17 @@ export default function App() {
     setIsGuided(false);
     doSearch(
       `Analyze the movie/show "${query}" and find 8-12 thematically connected films and TV shows. Focus on deep thematic, craft, philosophical, and lineage threads — not surface genre. Include a mix of well-known films and hidden gems. The searched title should be the first entry.`,
-      'title'
+      'title',
+      query  // compact teaser hint: just the title
     );
   };
 
   const handleGuide = (selIndices) => {
     setSearchQuery('');
     setIsGuided(true);
-    doSearch(buildGuidePrompt(selIndices), 'guided');
+    // Build a concise mood description for the teasers API instead of the full constellation prompt
+    const moodParts = selIndices.map((idx, step) => GUIDE[step].opts[idx].label);
+    doSearch(buildGuidePrompt(selIndices), 'guided', moodParts.join('. '));
   };
 
   const handleBack = () => {
