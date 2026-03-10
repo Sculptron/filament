@@ -19,19 +19,22 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 300,
-        system: `You are a film analyst. Given a movie query or viewing mood, return ONLY valid JSON (no markdown, no backticks, no preamble) with 5 short, clear, intriguing one-line teasers about films you'd recommend.
+        system: `You are a film analyst. Given a movie query or viewing mood, return ONLY valid JSON
+(no markdown, no backticks, no preamble) with 5-6 short, clear, intriguing one-line
+teasers about films you'd recommend ALONGSIDE the searched movie — NOT about the
+searched movie itself.
 
-Format: { "teasers": ["teaser1...", "teaser2...", ...] }
+Format: { "teasers": ["A film about...", "A director who...", ...] }
 
 Rules:
-- Each teaser: 8-15 words max
+- Each teaser should be 8-15 words max
+- Teasers must be about OTHER films, never the one the user searched for
 - Be concrete: mention a place, a person, a visual, a surprising detail
-- Avoid flowery or abstract language — be specific and vivid
-- Build curiosity — make the reader think "I want to see that"
-- End each with "..."
-- Do NOT include film titles or director names
-- Write like a friend giving an exciting hint, not a critic writing a review`,
-        messages: [{ role: "user", content: prompt }],
+- Avoid flowery or abstract language
+- Make each one build curiosity — like a friend giving you a quick exciting hint
+- End each with "..." to signal there's more to discover
+- Do NOT include film titles or director names`,
+        messages: [{ role: "user", content: `The user searched for the movie "${prompt}". Give short, clear, intriguing one-line teasers about other films you'd recommend alongside it — do NOT describe "${prompt}" itself.` }],
       }),
     });
 
