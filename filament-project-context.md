@@ -3,41 +3,14 @@
 > **Read this file first at the start of every Claude Code session.**
 > This is the living brain of the Filament project. It contains everything you need to understand the product, the architecture, the plan, and the current state of progress.
 
-<!-- DASHBOARD_SNAPSHOT
-project_id: filament
-project_name: Filament
-category: Dev Product
-tagline: AI-powered thematic movie discovery via constellation maps
-status: Live — Pre-Launch Monetization & UX Prep
-phase: Step 2.6 of 8
-progress: 52
-last_touched: 2026-02-25
-next_milestone: UX Agent specs + Social Agent content arsenal + Stripe paywall implementation
-tasks:
-  - Activate UX Agent (Agent 10) — share sheet, cold visitor CTA, Pro visibility specs
-  - Activate Social Media Agent (Agent 11) — tweet templates, Reddit playbook, founder posts
-  - "CEO actions: Apply to Mubi + Amazon Associates, confirm Twitter/X account, confirm LTD seat cap"
-  - "Step 2.8: Implement Stripe paywall (LTD $79 + subscription $6/mo) + reduce free tier 5→3 searches"
-week_tasks:
-  - priority: high
-    task: Activate UX Agent — spec share sheet redesign + cold visitor CTA
-  - priority: high
-    task: Activate Social Media Agent — build full launch content arsenal
-  - priority: med
-    task: "CEO: Apply to Mubi and Amazon Associates affiliate programs"
-  - priority: med
-    task: Set up UptimeRobot cold start prevention (5 min, no code)
-resources: filament-pink.vercel.app · github.com/Sculptron/filament
-parked: false
-END_DASHBOARD_SNAPSHOT -->
-
 ---
 
 ## What Is Filament?
 
 Filament is an AI-powered thematic movie and TV show discovery tool. Users explore films and shows through an interactive constellation map where movies are nodes connected by colored lines representing shared thematic threads — not genres, but feelings, mythologies, moods, and emotional textures.
 
-**Live URL:** https://filament-pink.vercel.app
+**Live URL:** https://watchfilament.com *(custom domain — DNS live as of March 9, 2026)*
+**Legacy URL:** https://filament-pink.vercel.app *(still works, redirects to watchfilament.com)*
 **Repository:** https://github.com/Sculptron/filament
 **Creator:** Saadman (GitHub: Sculptron)
 
@@ -56,14 +29,16 @@ Turn Filament from a working prototype into a profitable product by building a s
 | Frontend | React (via Vite) | Single-page app, all inline styles, no CSS framework |
 | Build Tool | Vite | Standard React + Vite scaffold |
 | Hosting | Vercel (free tier) | Auto-deploys on GitHub push |
-| Serverless API | Vercel Functions | Node.js serverless function at `/api/constellation` |
-| AI Engine | Anthropic Claude API | Model: `claude-sonnet-4-20250514` |
+| Serverless API | Vercel Functions | `/api/constellation.js` (primary) + `/api/teasers.js` (parallel, non-blocking) |
+| AI Engine — Constellation | Anthropic Claude API | Model: `claude-sonnet-4-20250514`, max_tokens: 4500 |
+| AI Engine — Teasers | Anthropic Claude API | Model: `claude-haiku-4-5-20251001`, max_tokens: 300 |
 | Version Control | Git + GitHub | Repository: `Sculptron/filament` |
 | Database | Supabase (PostgreSQL) | ✅ Live — `constellations` and `search_logs` tables |
 | Auth | Supabase (built-in) | Available but not yet used for user accounts |
-| Rate Limiting | Custom (IP-based) | ✅ 5 searches per IP per 24 hours, enforced in serverless function |
+| Rate Limiting | Custom (IP-based) | ✅ 5 searches per IP per 24 hours (reduction to 3 pending — must happen atomically with Stripe going live) |
+| Domain | Namecheap | watchfilament.com — purchased March 9, 2026, connected to Vercel |
 | Analytics | **Not yet set up** | Plausible or PostHog — decision pending |
-| Payments | **Not yet set up** | Stripe — needed for Phase 2 monetization |
+| Payments | **Not yet set up** | Stripe — needed for monetization phase. Paywall UI is live with placeholder checkout URLs. |
 
 ---
 
@@ -71,8 +46,9 @@ Turn Filament from a working prototype into a profitable product by building a s
 
 | File | Purpose |
 |------|---------|
-| `src/App.jsx` | Entire frontend — landing page, guided flow, constellation view, background animation |
-| `api/constellation.js` | Serverless function — proxies to Claude API, saves to Supabase, enforces rate limiting |
+| `src/App.jsx` | Entire frontend — landing page, guided flow, constellation view, background animation, loading experience, share sheet, cold visitor banner, pro feature visibility |
+| `api/constellation.js` | Primary serverless function — proxies to Claude Sonnet, saves to Supabase, enforces rate limiting |
+| `api/teasers.js` | Lightweight Claude Haiku call — returns 5 teaser hints, always returns 200 (silent failure) |
 | `lib/supabaseClient.js` | Supabase client utility for database connections |
 | `schema.sql` | Database schema — constellations table, search_logs table, RLS policies, generate_share_id function |
 | `vercel.json` | Vercel deployment configuration — SPA rewrites only (cron job blocked by Hobby plan) |
@@ -85,278 +61,143 @@ Turn Filament from a working prototype into a profitable product by building a s
 
 ```
 User's Browser (React SPA)
-    ↕ POST /api/constellation
-Vercel Serverless Function (api/constellation.js)
-    ↕ Check rate limit (5/IP/24hr via search_logs table)
-    ↕ POST https://api.anthropic.com/v1/messages
-    ↕ (API key stored as Vercel environment variable)
-Anthropic Claude API
-    ↕ Returns structured JSON (themes + movies)
-Serverless Function:
-    ↕ Parses response (with error recovery for malformed JSON)
-    ↕ Generates share_id
-    ↕ Saves constellation + logs search to Supabase (blocking — must complete before response)
-    ↕ Returns clean JSON + share_id to frontend
-React renders interactive constellation map
+    ↕ Two parallel calls fire on search:
+
+    [1] POST /api/teasers (non-blocking, non-critical)
+        → Claude Haiku → returns { teasers: string[] } or { teasers: null }
+        → Feeds into LoadingView for progressive teaser display
+        → Silent failure — never breaks the core flow
+
+    [2] POST /api/constellation (awaited, critical)
+        → Check rate limit (5/IP/24hr via search_logs table)
+        → POST https://api.anthropic.com/v1/messages (Sonnet)
+        → Parse response (with error recovery for malformed JSON)
+        → Generate share_id
+        → Save constellation + log search to Supabase (blocking)
+        → Return clean JSON + share_id to frontend
+        → React renders interactive constellation map
 ```
 
-**Note on Supabase write order:** Non-blocking writes (fire after res.json()) were attempted but reverted — Vercel terminates serverless functions immediately after res.json() is called, so background saves never completed and shareable URLs broke. Writes remain blocking until a streaming or queuing solution is available.
-
-### Shareable URL Flow
-```
-User clicks Share → copies URL: filament-pink.vercel.app/c/[shareId]
-Recipient opens URL → frontend fetches constellation from Supabase by share_id
-Constellation renders without using an API call (no rate limit impact)
-```
+**Note on Supabase write order:** Non-blocking writes were attempted and reverted — Vercel terminates serverless functions immediately after res.json(), so background saves never completed and shareable URLs broke. Writes remain blocking.
 
 ---
 
-## Database Schema (Supabase)
+## Loading Experience (Rebuilt March 9, 2026)
 
-### Tables
+The loading screen was completely rebuilt from a static spinner into a progressive, cinematic experience.
 
-**`constellations`**
-- Stores every generated constellation with its full JSON data
-- Each row has a unique `share_id` (generated by `generate_share_id()` function)
-- Enables shareable URLs — constellations can be retrieved by share_id without a new API call
-- **Note:** Stores full JSON blob. The v2 format adds `type` and `explanation` fields to themes and `why_this_exists` to movies. Old-format constellations from v1 will still exist in the table — frontend must handle both formats gracefully.
+### Visual Elements
+- **Camera aperture iris animation** — 6 SVG blades arranged in a circle, each pivoting individually from its outer edge to open and close (not rotating as a unit). Blades snap open to reveal a purple (#C77DFF) center glow, hold open, then snap shut. 3.5s asymmetric cycle: quick open (0-30%), long hold (30-65%), quick close (65-83%), brief rest (83-100%).
+- **Typography** — All loading phrases in Georgia, italic. Two-tier visual hierarchy: status/bridge/fallback text in #777 at 14.5px / 0.75 opacity; teaser text in #bbb at 15.5px / 0.9 opacity.
+- **Background particles** — Amplified: skip rate 40%→18% (denser field), node radius 1.0–2.2px→1.4–3.1px, base opacity .12–.30→.22–.50, breathing amplitude .15→.30, hover brightness .5→.7, glow radius 6px→8px, line opacity doubled.
 
-**`search_logs`**
-- Logs every search with IP address, timestamp, and search prompt
-- Used for rate limiting (5 searches per IP per 24-hour rolling window)
-- Provides usage analytics data
+### Progressive Teaser Sentence System
+Two parallel API calls fire on search. The LoadingView component manages a sentence queue with two paths:
 
-### Security
-- Row Level Security (RLS) policies active on both tables
-- `generate_share_id` PostgreSQL function creates unique short IDs for constellation URLs
+**Path A — Teasers arrive (~5–8 seconds):**
+1. "Finding your constellation..." (0s)
+2. "Here's a taste of what's coming..." (bridge, fires when teasers arrive)
+3. 5 real teaser sentences from Haiku API (brighter/larger styling)
+4. "Almost there..." → "Searching across a century of cinema..." → "Exploring every frame in every archive..." (holds indefinitely)
 
----
+**Path B — Teasers never arrive:**
+1. "Finding your constellation..." (0–6s)
+2. Generic cycling phrases (Pulling on thematic threads, Mapping hidden connections, etc.)
+3. Same three escalating fallbacks as Path A
 
-## Performance Architecture & Known Bottlenecks
+**Timing constants:**
+- INITIAL_STATUS_HOLD: 6000ms
+- TEASER_TRIGGER_DELAY: 1200ms
+- SENTENCE_INTERVAL: 4500ms
+- FADE_DURATION: 400ms
+- IRIS_CYCLE: 3500ms
 
-### Response Time Reality
-Current response times: **35-44 seconds** (improved from a 44-57 second regression; working toward the original 15-18 second baseline). Token logging is now active in the serverless function — check Vercel function logs to monitor actual input/output token counts per request.
+**Race condition fix (March 9, 2026):** Two bugs were fixed. (1) Guided mode was passing the full `buildGuidePrompt` output to the teasers API instead of a concise mood sentence — teasers API choked, returned null, Path B ran. Fixed: guided mode now extracts user option labels into a clean mood sentence before passing to teasers. (2) An empty array `[]` was truthy, so `if (t) setTeasers([])` fired, set `teasersAppliedRef.current = true`, and permanently blocked Path B. Fixed: guard is now `if (t && t.length)`.
 
-### Latency Breakdown (from Technical Audit, February 25, 2026)
-| Stage | Impact | Time |
-|-------|--------|------|
-| Vercel cold start (intermittent) | Medium | 0-800ms |
-| Rate limit check (Supabase read) | Low-Medium | 100-300ms |
-| Claude API — time to first token | High | 2-5 seconds |
-| Claude API — token generation | High | 8-20 seconds |
-| Supabase writes (blocking) | Low-Medium | 200-500ms |
-| Transit + render | Low | 150-400ms |
-
-**Key insight:** Claude's token generation accounts for ~85-90% of total latency. This cannot be eliminated — it is the cost of generating rich, unique thematic analysis. The strategy is to eliminate unnecessary overhead around it and make the wait feel intentional.
-
-**max_tokens:** Currently **4500** (reduced from 8000). A full 8-movie constellation uses ~3,000-3,500 tokens; 4500 provides ~30% headroom. Monitor token logs and tune down if 95th percentile output stays under 3000 tokens.
-
-### Performance Interventions — Outcomes (February 25, 2026)
-| Intervention | Outcome |
-|---|---|
-| Eliminate cold starts via cron | ❌ Blocked — Vercel Hobby plan only supports daily crons, not every 5 min. UptimeRobot (free external pinger) is the alternative — not yet set up. |
-| Non-blocking Supabase writes | ❌ Reverted — Vercel terminates function after res.json(); background saves never ran, breaking shareable URLs. |
-| Improved loading screen | ✅ Deployed — shows searched title, honest time expectation message |
-| Reduce to exactly 8 movies | ✅ Deployed |
-| Reduced max_tokens 8000→4500 | ✅ Deployed |
-| Conciseness instruction added | ✅ Deployed — 2-3 sentence desc cap, 3500 token budget |
-| Token usage logging | ✅ Deployed — visible in Vercel function logs |
-
-**❌ Rejected interventions:**
-- Reducing content quality (trimming vibe lines, removing why_this_exists) — CEO: "the nuance is the magic"
-- Using Haiku for guided mode — CEO: "nuanced results are the magic of Filament"
-
-**⏸ Deferred — post-launch:**
-- Streaming responses (highest long-term impact, significant architectural work — Week 1-2 priority)
-- Caching popular searches (instant results for common titles — Week 1 priority)
+### Preserved Elements
+- Searched movie title display ("Mapping the constellation around X")
+- Time expectation message ("This can take up to a minute — we're doing the deep work.")
+- Progress bar dots: **REMOVED** (March 9, 2026)
 
 ---
 
-## AI System Prompt — Current Production Version
+## Share System (Updated March 9, 2026)
 
-This is the exact prompt in `api/constellation.js` as of February 25, 2026. **max_tokens: 4500.**
+### Canonical Domain
+All shareable URLs are built as `https://watchfilament.com/c/[shareId]`. This applies to both the Tweet This and Copy Link actions. The canonical domain is hardcoded — does not vary by Vercel deployment.
 
-```
-You are a cinematic thematic analyst with encyclopedic film knowledge and the soul of a passionate cinephile. You identify deep connections between films and TV shows across four dimensions.
-
-THE FOUR THREAD TYPES:
-1. THEMATIC — Shared feelings, ideas, mythologies, subject matter. Example: "The cost of empire," "Grief wearing a mask"
-2. CRAFT SIGNATURE — The audiovisual fingerprint: color palette, camera behavior, sound design, editing rhythm. Example: "Nocturnal digital grain," "Silence as texture"
-3. CREATIVE PHILOSOPHY — The directorial intelligence: why these choices were made, how filmmakers think about storytelling. Example: "Cinema as spiritual witness," "Internal states made physical"
-4. CINEMATIC LINEAGE — Ancestry and descendancy: what a film responds to, descends from, or spawned. Example: "Domestic space as horror," "Restraint as devastating force"
-
-Return ONLY valid JSON (no markdown, no backticks, no preamble):
-{
-  "themes": [
-    {
-      "id": "snake_case_key",
-      "name": "Human Readable Thread Name",
-      "type": "thematic | craft | philosophy | lineage",
-      "explanation": "One sentence explaining what this thread means and why these works share it."
-    }
-  ],
-  "movies": [
-    {
-      "id": 1,
-      "title": "Movie Title",
-      "year": 2020,
-      "type": "Film or TV",
-      "themes": ["theme_key1", "theme_key2"],
-      "desc": "One rich paragraph about the film.",
-      "vibe": "One evocative sentence pitch — like a film-obsessed friend convincing you to watch it at 2 AM.",
-      "why_this_exists": "One sentence about the creative impulse behind this film — what drove it into existence."
-    }
-  ]
-}
-
-RULES:
-- Generate 5-7 threads: 2-3 thematic, 1-2 craft signature, 1-2 creative philosophy, 1 cinematic lineage
-- Return exactly 8 movies/shows. The searched title (if given) should be first.
-- Each film should connect to 2-3 threads. Avoid picking two films that serve the same role in the constellation.
-- Mix well-known films with hidden gems that cinephiles treasure
-- "vibe" should be punchy, personal, evocative — NOT a plot summary
-- "why_this_exists" illuminates the creative impulse, not the plot
-- Every thread must connect at least 2 movies
-- Only return REAL movies/shows with CORRECT years
-- Thread names should be poetic and specific, never generic genre labels
-- theme ids must be lowercase with underscores
-- Be concise: "desc" should be 2-3 sentences maximum. "explanation" should be one short sentence. Keep total response under 3500 tokens.
-```
+### Share Sheet
+The Share button no longer copies directly to clipboard. It opens a share sheet:
+- **Desktop:** Popover below the Share button (z-index 200), click-catcher behind it, Escape key closes. Purple border tint while open.
+- **Mobile:** Bottom sheet with overlay, handle bar, "Share Constellation" title.
+- **Tweet This row:** Builds tweet dynamically: `just mapped "[title]" on Filament and got a constellation connected by "[thread name]" — this thing is uncanny [url] #FilmTwitter`. Optional title hashtag appended if character budget allows. Opens `twitter.com/intent/tweet` in new tab.
+- **Copy Link row:** Copies `watchfilament.com/c/[shareId]` to clipboard. Confirmed state: "✓ Copied!" in #C77DFF for 2000ms then reverts.
 
 ---
 
-## Cinema Thread Architecture
+## Cold Visitor CTA Banner (Added March 9, 2026)
 
-Cinema Filament maps connections through **four thread types**:
+When a user arrives via a shared `/c/[id]` URL (`isShared === true`, derived from `api/shared.js`), a dismissible banner appears at the top of the constellation view.
 
-| Thread Type | What It Captures | Example |
-|-------------|-----------------|---------|
-| **Thematic** | Shared feelings, ideas, mythologies, subject matter | "The cost of empire" connects Peaky Blinders → Sopranos → Macbeth |
-| **Craft Signature** | Audiovisual fingerprint — how the film looks, sounds, moves | "Nocturnal digital grain" connects Collateral → Heat → Miami Vice |
-| **Creative Philosophy** | Directorial conviction about what cinema can do | "Cinema as spiritual witness" connects Malick → Tarkovsky → Zhao |
-| **Cinematic Lineage** | Ancestry and descendancy — what conversation in cinema history it belongs to | "Domestic space as horror" traces Rosemary's Baby → The Shining → Hereditary |
-
-**Distribution per constellation:** 5-7 threads total — 2-3 thematic, 1-2 craft, 1-2 philosophy, 1 lineage
+- **Appears:** 300ms after constellation loads, with fade-in animation
+- **Desktop:** Full text — "Someone mapped the films connected to [title]. Explore their constellation — or generate your own." + "Generate yours →" button (purple, routes to `/?ref=shared`) + × close button
+- **Mobile:** Compact single-line — "Films connected to [title] — make your own." + "Generate →" + ×
+- **Dismiss:** Collapses with max-height animation. `coldVisitorBannerDismissed` flag stored in React session state — persists across in-session navigations, resets on page reload.
+- **`?ref=shared` on homepage:** Homepage detects this param on mount and programmatically focuses the search input (`inputRef.current?.focus()`).
 
 ---
 
-## Guided Questionnaire (v2 — To Be Deployed in Step 3)
+## Pro Feature Visibility (Added March 9, 2026)
 
-**Q1: "How do you want to spend tonight?"** → Mode of engagement
-- Total immersion / Active puzzle-solving / Intimate realism / Visual spectacle
+Two sequential moments that surface the Pro offering. Driven by `searchesRemaining` returned from `api/constellation.js`.
 
-**Q2: "What do you want the experience to do to you?"** → Emotional arc
-- Devastating crescendo / Visceral intensity / Dark humor + tragedy / Perspective shift
+### Moment 1 — "1 Search Remaining" Toast
+- **Trigger:** `searchesRemaining === 1`, fires 2500ms after constellation renders
+- **Suppressed if:** `searchWarningToastDismissed === true` in session state
+- **Content:** Purple dot + "1 free search remaining." + "Pro unlocks unlimited." + "See what's included →" CTA + × close
+- **Auto-dismisses** after 9000ms
+- **"See what's included →"** closes toast and opens paywall modal with `context='preview'`
+- **×** sets `searchWarningToastDismissed = true` (does not reshow in session)
 
-**Q3: "What kind of filmmaking is calling to you?"** → Craft sensibility
-- Silence + patience / Music as storytelling / Raw + naturalistic / Obsessive precision
-
-**Key design principles:**
-- No option maps to a single genre
-- Each question targets a genuinely different dimension
-- Selections compile into natural-language prose descriptions before hitting the API
-- Feels like a conversation, not a form
-- 64 unique combinations (4×4×4)
-
----
-
-## UX Improvements (v2 — To Be Deployed in Step 3)
-
-1. **Single-screen onboarding** — "We found X films connected by Y invisible threads" + "Start exploring" button
-2. **Flattened thread pills** under "What connects them" label with type icons (◆ ◎ ◈ ↯)
-3. **Thread explanation cards** — slide in when pill is clicked
-4. **"Connected through"** replacing "Threads" in detail panel
-5. **"Also connected to"** replacing "Connected To"
-6. **"?" help button** in header with compact dismissible card
-7. **Bottom hint text** — disappears on first interaction
-8. **Year displayed under each node**
-9. **d3-force physics simulation** replacing manual velocity/dampening system
-10. **Detail panel hierarchy:** The Vibe → Why This Exists → Description → Connected through → Also connected to
+### Moment 2 — Paywall Modal
+- **Trigger:** Search attempted when `searchesRemaining === 0`, OR 429 from API, OR "See what's included →" from toast (`context='preview'`)
+- **Non-dismissible overlay** (clicking outside does nothing)
+- **context='blocked':** "You've used your 3 free searches for today. Come back tomorrow — or join Pro for unlimited exploration."
+- **context='preview':** "Pro members search without limits. Here's everything that's included."
+- **Note on copy:** Modal says "3 free searches" — this is forward-looking copy for when the rate limit is reduced to 3 at Stripe launch. Server currently enforces 5.
+- **Pricing cards:** Monthly ($6/mo), Annual ($49/yr — "BEST VALUE" badge), Lifetime ($79 one-time — "Limited seats remaining")
+- **Checkout URLs:** `/checkout/monthly`, `/checkout/annual`, `/checkout/lifetime` — placeholders, all 404 until Stripe is integrated
+- **"← Return to constellation"** closes modal; constellation remains in state
+- **Mobile:** Bottom sheet layout, Annual first, Monthly second, Lifetime third
 
 ---
 
-## v2 Prototype Reference
+## Session State Flags (Global, React Context / Module-Level)
 
-A complete, functional v2 prototype was built February 18, 2026 as a React artifact and reviewed and approved as the design reference for Step 3 production implementation. The prototype code is saved as `filament-v2.tsx.txt` in the Claude Chat project documents.
-
-**Key adaptation needed for production:**
-- Route API calls through `/api/constellation` serverless function
-- The production system prompt already has the four thread types and 8-movie count — Step 3 Session 1 focuses on the questionnaire redesign, error handling, and backward compatibility
-- Ensure frontend handles both v1 and v2 constellation formats from Supabase
-- Port improved error handling from prototype
-- `max_tokens` is currently 4500 — monitor post-launch and tune if needed
-
----
-
-## Features Built ✅
-
-- Movie/show title search → AI-generated constellation
-- 3-step guided vibe questionnaire → AI-generated constellation
-- Interactive force-directed graph with physics simulation
-- Node click → detail panel (description, vibe, threads, connections)
-- Theme filter pills — click to isolate thematic threads
-- Drag-to-rearrange nodes (desktop only)
-- Animated geometric dot-and-line background (canvas-based, cursor-reactive)
-- Animated loading state with rotating phrases and progress bar
-- Secure API key handling via serverless function
-- **Supabase database** — constellations and search_logs tables with RLS policies
-- **Rate limiting** — 5 searches per IP per 24 hours
-- **Error recovery** — handles malformed Claude JSON responses gracefully
-- **Shareable constellation URLs** — every constellation gets a unique URL (/c/[shareId])
-- **Share button** — copy-to-clipboard functionality
-- **Searches remaining indicator** — shows users how many free searches they have left
-- **Friendly rate limit messages** — user-facing messaging when limit is reached
-- **Improved loading screen** — shows searched movie title + honest time expectation ("up to a minute")
-- **Exactly 8 movies** — system prompt with conciseness rules and 4500 max_tokens
-- **Token usage logging** — input/output token counts logged per request to Vercel function logs
-- **Mobile-native experience** — bottom sheet detail panel, touch-aware node selection, horizontal pill scroll, pinch-zoom disabled, larger typography, drag disabled on mobile (< 768px breakpoint)
-
-## Features Not Yet Built ❌
-- **UptimeRobot cold start prevention** — free external pinger, no code required, 5-minute task (queued)
-- **Free tier reduced from 5 to 3 searches** — approved, pending Developer Agent implementation (primary conversion lever)
-- **Stripe paywall integration** — subscription ($6/month or $49/year) + Lifetime Deal ($79 one-time, capped 100 seats)
-- **User authentication system** — required before subscriptions can work; LTD buyers need accounts to log in
-- **Share sheet redesign** — small share sheet with Copy Link + Tweet This (pre-populated tweet with film title, thread name, URL, hashtags)
-- **Cold visitor CTA on shared constellation pages** — visible above-the-fold "Generate your own constellation →" routing visitors into search/questionnaire flow; must be live before any social posts go out
-- **Pro feature visibility before paywall** — users must see what they're missing before hitting the limit; upgrade should feel like gaining something, not hitting a wall
-- **Affiliate links embedded in film results** — Mubi (priority) + Amazon Associates; passive revenue scaling with traffic
-- Four thread types (v2) — designed, prototype built and reviewed, not yet in production
-- Redesigned guided questionnaire (64 combinations) — designed, prototype ready, not yet in production
-- UX overhaul (onboarding, thread explanation cards, d3-force, etc.) — designed, prototype ready, not yet in production
-- Streaming responses — deferred to post-launch (Week 1-2 priority)
-- Caching popular searches — deferred to post-launch (Week 1 priority)
-- User accounts / authentication
-- Saved constellations (personal library)
-- Deep dive mode
-- Streaming availability overlay (TMDB/JustWatch)
-- Multi-seed search
-- Poster images and movie metadata enrichment
-- Analytics (Plausible or PostHog)
-- Custom domain
-- SEO / Open Graph meta tags
-- Terms of service / privacy policy
-- PWA support
+Two flags persist across in-session component navigations (not localStorage — reset on page reload):
+- `coldVisitorBannerDismissed` — prevents cold visitor banner from reappearing after dismiss
+- `searchWarningToastDismissed` — prevents "1 search remaining" toast from reappearing after × close
 
 ---
 
 ## The Agent System
 
-Twelve defined roles. Seven executed through one Claude Code instance on one codebase. The Creative Director (Agent 8) lives primarily in Claude Chat. Agents 9–12 are strategy, UX, social, and optimization specialists activated as needed.
+Eight defined roles. Seven executed through one Claude Code instance on one codebase. The eighth (Creative Director) lives primarily in Claude Chat.
 
 ### Agent 1 — Infrastructure Architect
-**Owns:** Database, authentication, rate limiting, caching, environment config, deployment pipeline, error handling, server performance
-**Status:** Core infrastructure complete. Cold start prevention blocked by Vercel Hobby plan — UptimeRobot setup pending. Non-blocking DB writes not viable on Vercel serverless. Performance tuning (max_tokens, conciseness rules, token logging) complete.
+**Owns:** Database, authentication, rate limiting, caching, environment config, deployment pipeline, error handling
+**Status:** Core infrastructure complete. Cold start prevention blocked by Vercel Hobby plan — UptimeRobot setup pending.
 
 ### Agent 2 — Product Engineer
-**Owns:** New features, UI/UX iteration, shareable URLs, loading experience, guided mode, deep dive mode, multi-seed search, streaming overlay, mobile optimization
-**Status:** Shareable URLs, loading screen, and full mobile-native experience complete. v2 prototype built and reviewed — ready for production port in Step 3.
+**Owns:** New features, UI/UX iteration, shareable URLs, loading experience, guided mode, mobile optimization
+**Status:** Complete through March 9, 2026. All pre-launch UX features shipped.
 
 ### Agent 3 — Growth & Marketing Strategist
 **Owns:** Community seeding, social content, launch copy, Reddit/Twitter/Letterboxd strategy, SEO, newsletter
-**Note:** Primarily executed through Claude Chat. Code-related marketing tasks (OG tags, SEO) go through Claude Code.
+**Note:** Primarily executed through Claude Chat. Code-related tasks (OG tags, SEO) go through Claude Code.
 
 ### Agent 4 — Monetization & Business Ops
-**Owns:** Stripe integration, subscription tiers, affiliate links, pricing, cost modeling, tier gating
+**Owns:** Stripe integration, subscription tiers, affiliate links, pricing, tier gating
 **Depends on:** Agent 1 (database/auth must exist first)
 
 ### Agent 5 — Legal & Compliance
@@ -364,7 +205,7 @@ Twelve defined roles. Seven executed through one Claude Code instance on one cod
 **Note:** Drafted in Claude Chat, added to app via Claude Code.
 
 ### Agent 6 — Data Quality & Enrichment
-**Owns:** TMDB API integration, movie data validation, caching popular constellations, hallucination detection
+**Owns:** TMDB API integration, movie data validation, caching popular constellations
 
 ### Agent 7 — Analytics & Optimization
 **Owns:** Plausible/PostHog setup, event tracking, API cost monitoring, conversion funnel analysis
@@ -374,23 +215,6 @@ Twelve defined roles. Seven executed through one Claude Code instance on one cod
 **Note:** Lives in Claude Chat. Outputs handed to Product Engineer for implementation.
 **Status:** Cinema thread architecture and questionnaire redesign complete. v2 prototype built and reviewed.
 
-### Agent 9 — Monetization Strategist *(Activated — session complete)*
-**Owns:** Revenue model design, pricing strategy, free tier decisions, affiliate strategy, launch sequencing
-**Status:** Full strategy session complete. Strategy document and Chief Strategist briefing report produced. Handoff to Chief Strategist complete.
-
-### Agent 10 — UX/UI Specialist *(Not yet activated)*
-**Owns:** Share sheet redesign spec, cold visitor landing experience spec, Pro feature visibility design, paywall UX — all translated into developer-ready specifications
-**Status:** Pending activation. Must be activated before Developer Agent implements any monetization UX.
-**Note:** UX Agent output always goes to Chief Strategist for review before going to Developer Agent.
-
-### Agent 11 — Social Media Strategy Agent *(Not yet activated)*
-**Owns:** Tweet templates, hashtag matrix, Reddit participation playbook, founder post templates, Film Twitter outreach scripts, posting cadence for launch window
-**Status:** Pending activation. Can run in parallel with UX Agent (Agent 10).
-
-### Agent 12 — Conversion Optimization Agent *(Pending — activate after launch)*
-**Owns:** Analytics interpretation, conversion funnel analysis, pricing and free tier optimization based on real data
-**Status:** Do not activate until 30 days of live traffic data exists.
-
 ---
 
 ## Execution Order & Current Status
@@ -399,253 +223,72 @@ Twelve defined roles. Seven executed through one Claude Code instance on one cod
 |------|-------|-----------------|--------|
 | 1 | Infrastructure Architect | Supabase database, rate limiting, error recovery | ✅ COMPLETED Feb 13 |
 | 2 | Product Engineer | Shareable URLs, share button, rate limit UX | ✅ COMPLETED Feb 13 |
-| 2.5 | Agent 1 + Agent 2 | Pre-launch performance fixes + mobile-native experience | ✅ COMPLETED Feb 25 (cold start cron blocked by Hobby plan; UptimeRobot setup pending) |
-| 2.6 | UX Agent → Developer Agent | Monetization UX: share sheet redesign, cold visitor CTA, Pro visibility before paywall | NEXT (requires UX Agent activation first) |
-| 2.7 | Social Media Agent | Full content arsenal: tweet templates, Reddit playbook, founder post templates, outreach scripts | NEXT (runs in parallel with 2.6) |
-| 2.8 | Developer Agent | Stripe + paywall (subscription + LTD) + free tier reduced 5→3 searches | After UX specs from 2.6 are ready |
-| **3** | **Creative Director + Product Engineer** | **v2 port: four thread types, new questionnaire, UI/UX overhaul** | **Pending** |
-| 4 | Analytics & Optimization | Plausible/PostHog, event tracking, API cost monitoring | Pending |
-| 5 | Legal & Compliance | ToS, privacy policy, cookie consent | Pending |
-| 6 | Growth & Marketing | Community launch — Reddit + Film Twitter push (after all pre-launch items complete) | Pending |
-| 7 | Data Quality & Enrichment | TMDB integration, validation, caching | Pending |
-| 8 | Monetization & Business Ops | Auth system (required for subscriptions), affiliate link embedding | Pending |
-
-### Step 2.5 — Pre-Launch Performance Fixes — What Actually Shipped
-
-**Shipped:**
-- Loading screen shows searched movie title ("Mapping the constellation around X") + honest time expectation ("This can take up to a minute, we're doing the deep work")
-- System prompt updated to exactly 8 movies with conciseness rules
-- max_tokens reduced 8000 → 4500
-- Token usage (input/output) logged to Vercel function logs after every request
-- Response time regression fixed (44-57s → 35-44s) by rewriting constraining prompt rule
-
-**Attempted but reverted:**
-- Vercel cron job for cold start prevention — Hobby plan only supports daily crons; alternative: UptimeRobot (free, no code required, pending setup)
-- Non-blocking Supabase writes — Vercel terminates function after res.json(); reverted to blocking writes to preserve shareable URLs
-
-**Mobile-native experience (also shipped Feb 25):**
-- Full < 768px responsive breakpoint with isMobile detection
-- Bottom sheet detail panel (fixed, 80vh, animated translateY entry)
-- Touch-aware node selection (8px slop threshold, prevents double-fire)
-- Drag disabled on mobile; enlarged nodes, larger type, year text hidden
-- Thread pills horizontally scrollable single row
-- Pinch-zoom disabled (viewport meta)
-- Onboarding and hint text updated for touch ("Tap" vs "Click")
-- Tested and confirmed on Pixel 10 Pro / Chrome
-
-### Step 3 Details (Next Session)
-**Session 1:** New questionnaire with `buildGuidePrompt` natural-language compilation, improved error handling, backward compatibility for v1 shared URLs. Note: the production system prompt already has the four thread types — Session 1 focus is the questionnaire and error handling.
-**Session 2:** d3-force physics already in production; Session 2 focuses on onboarding overlay, thread pills with type icons and explanation cards, detail panel hierarchy overhaul, help button, hint text refinements, year display.
-
----
-
-## Post-Launch Priorities (After Community Launch)
-
-### Week 1
-- **Caching popular searches** — Pre-generate constellations for top 50 most-searched titles. Serve instantly from Supabase. Eliminates 100% of wait time for common searches. A popular titles shortlist will be provided by Claude Chat before implementation.
-- **Streaming responses** — Implement Anthropic streaming API through serverless function with progressive UI. Transforms "wait then see" into "watch it assemble." Highest long-term UX impact.
-
-### Week 1-2
-- Monitor actual max_tokens usage in Vercel function logs — if 95th percentile output is consistently under 3000 tokens, reduce ceiling further below 4500
-
----
-
-## Monetization Plan
-
-*Strategy confirmed Feb 25, 2026 — Monetization Strategist session complete.*
-
----
-
-### Revenue Stream 1 — Freemium Subscription *(Primary recurring revenue)*
-- **Price:** $6/month or $49/year
-- Unlocks unlimited searches and Pro features
-- Primary recurring revenue engine
-- Requires user authentication system to be built first — cannot launch until auth exists
-
-### Revenue Stream 2 — Lifetime Deal (LTD) *(First to launch)*
-- **Price:** $79 one-time payment
-- **Cap:** 100 seats maximum
-- **Purpose:** Bootstrap capital to fund authentication system development
-- Launch before subscription infrastructure is complete — no auth required to sell
-- Buyers need user accounts to log in and access unlimited searches — accounts must exist at LTD fulfillment
-- CEO must confirm seat cap (100 seats recommended)
-
-### Revenue Stream 3 — Affiliate Links *(Passive, scales with traffic)*
-- **Mubi affiliate program** — priority integration
-- **Amazon Associates** — secondary
-- Embedded in film results alongside each movie
-- Passive revenue that scales with traffic — no developer work required to apply
-- **CEO action required:** Apply to both programs directly
-
-### Free Tier
-- **Current:** 5 searches per 24 hours
-- **Approved change:** 3 searches per 24 hours
-- This is the primary conversion lever — pending Developer Agent implementation (Step 2.8)
-
----
-
-### Growth Engine
-
-The shareable constellation URL is the primary growth mechanism:
-
-> User generates constellation → shares URL → cold visitor lands on map → experiences product → hits free tier limit → sees Pro offer → converts
-
-Every distribution decision exists to seed the top of this chain.
-
----
-
-### Social Media Strategy
-
-**Twitter/X — Primary distribution channel**
-- Film Twitter is the priority community
-- Posts show the product working — specific film, specific thread name, specific constellation
-- Never reads as product promotion — the artifact is the pitch
-- High-leverage tactic: reply to "what should I watch" posts with a real Filament constellation as a genuine response
-- Requires a dedicated Filament Twitter/X account *(CEO action)*
-
-**Reddit — Second priority**
-- Reply-based participation only — not cold link drops
-- Generate constellations as genuine responses to recommendation requests
-- Target subreddits: r/MovieSuggestions, r/TrueFilm, r/Letterboxd, r/criterion, r/television
-- One honest founder post per subreddit during launch window
-- All Reddit activity is manual — never automated
-
-**Facebook — Not recommended** (audience mismatch)
-
-**Instagram — Not recommended at this stage** (link mechanics create conversion barriers)
-
----
-
-### Launch Sequencing — Confirmed Order
-
-**Step 1 — Before any public posting (all required):**
-- Free tier reduced to 3 searches per 24 hours
-- Stripe paywall live (subscription + LTD)
-- Share sheet redesign complete (Copy Link + Tweet This)
-- Cold visitor CTA live on shared constellation pages
-
-**Step 2 — Launch week:**
-- CEO posts first constellation on Filament Twitter account
-- CEO begins monitoring r/MovieSuggestions and r/TrueFilm for reply opportunities
-- Honest founder post submitted to r/Letterboxd and r/TrueFilm
-
-**Step 3 — Ongoing during launch window:**
-- Daily reply activity on relevant Reddit threads
-- Regular constellation posts on Twitter with specific thread names highlighted
-- Manual outreach to 5–10 Film Twitter accounts with real audiences
-
----
-
-### CEO Action Items *(Cannot be delegated to agents)*
-- Apply to Mubi affiliate program
-- Apply to Amazon Associates
-- Create Filament Twitter/X account if it doesn't exist
-- Confirm LTD seat cap (100 seats recommended)
-- Set up Stripe account
-
----
-
-### Cost Structure
-- Per constellation: ~$0.01-0.03 with max_tokens 4500 — monitor actual costs via token logs in Vercel dashboard
-- Vercel free tier covers initial hosting
-- Supabase free tier covers initial database
-
----
-
-## Branding
-
-- **Name:** Filament (thread of connection + glowing wire inside a light source = cinema)
-- **Primary accent:** #C77DFF (purple)
-- **Background:** #0a0a0f (near-black with subtle blue)
-- **Design language:** Dark, minimal, modern, glassmorphism, animated geometric background
-- **Font:** Inter (system fallback)
-- **Tone:** Knowledgeable but not pretentious, passionate, slightly poetic
-- **Tagline:** "thematic discovery map"
-- **Guided mode tagline:** "3 questions. No genres. Just vibes."
-
-### 10-Color Theme Palette
-`#4ECDC4` teal · `#C77DFF` purple · `#FF6B6B` coral · `#4D96FF` blue · `#6BCB77` green · `#FFD93D` gold · `#FF8C42` orange · `#E0AAFF` lavender · `#00B4D8` cyan · `#FF477E` pink
-
----
-
-## Target Communities (Priority Order)
-
-1. r/MovieSuggestions
-2. r/TrueFilm
-3. Film Twitter
-4. Letterboxd communities
-5. r/InternetIsBeautiful, r/SideProject
-
-**Launch framing:** "I built a thing that maps movies by feeling instead of genre."
-
----
-
-## Creator Context
-
-- **Name:** Saadman (also goes by Firoz)
-- **GitHub:** github.com/Sculptron
-- **Technical level:** Not a professional developer. Filament is first deployed full-stack web app. Can follow instructions and modify code. Needs guidance on complex architecture.
-- **Platform:** Mac
-- **Node.js:** v24.13.1 / Git: 2.39.5
-- **Claude Code model:** claude-sonnet-4-6 (set as default)
-- **Budget:** Bootstrapped / minimal
-
----
-
-## Environment Variables
-
-| Variable | Location | Purpose |
-|----------|----------|---------|
-| `ANTHROPIC_API_KEY` | Vercel Settings → Environment Variables | Claude API authentication |
-| `SUPABASE_URL` | Vercel Settings → Environment Variables | Supabase project URL |
-| `SUPABASE_ANON_KEY` | Vercel Settings → Environment Variables | Supabase anonymous/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Vercel Settings → Environment Variables | Supabase service role key (server-side only) |
-
----
-
-## Open Questions & Unresolved Decisions
-
-- Custom domain: `filament.movie` mentioned as possibility, not purchased
-- Same search yields different constellations each time — feature or bug? (No decision made)
-- Pricing ($4-6/month) is untested — will validate after launch
-- Analytics tool: Plausible vs PostHog not decided — decision needed at Step 4
-- No formal timeline beyond phased roadmap
-- Literature version: build after cinema reaches profitability
-- max_tokens 4500 — monitor via Vercel function logs; tune down if 95th percentile output is consistently under 3000 tokens
-- UptimeRobot cold start prevention — not yet set up, no code required, 5-minute task
+| 2.5 | Agent 1 + 2 | Performance fixes, mobile-native experience | ✅ COMPLETED Feb 25 |
+| 3 | Creative Director + Product Engineer | v2 port: four thread types, new questionnaire, UI/UX overhaul | ✅ COMPLETED (date TBC) |
+| 3.5 | Product Engineer | Progressive teaser loading, iris animation, particle amplification | ✅ COMPLETED Mar 9 |
+| 4 | UX/UI Specialist + Product Engineer | Share sheet, cold visitor CTA, Pro feature visibility | ✅ COMPLETED Mar 9 |
+| **5** | **Monetization (Stripe)** | **Stripe live, rate limit 5→3, placeholder URLs replaced** | **← NEXT SESSION** |
+| 6 | Social Media Agent | Tweet templates, Reddit playbook, launch content | Pending |
+| 7 | Analytics | Plausible/PostHog, event tracking | Pending |
+| 8 | Legal | ToS, privacy policy | Pending |
+| — | LAUNCH | Film Twitter + Reddit community push | Pending — after Steps 5–6 |
 
 ---
 
 ## Progress Log
 
-> Updated at the end of every Claude Code session and after major strategic decisions in Claude Chat.
+- ✅ **Initial prototype** — Built and deployed to Vercel
+- ✅ **Step 1: Infrastructure Architect** — Supabase live, rate limiting (5/IP/24hr), error recovery (Feb 13, 2026)
+- ✅ **Step 2: Product Engineer** — Shareable URLs, share button, rate limit UX (Feb 13, 2026)
+- ✅ **Creative Director** — Four cinema thread types, guided questionnaire redesign (64 combinations) (Feb 17, 2026)
+- ✅ **v2 Prototype** — Built and approved (Feb 18, 2026)
+- ✅ **Step 2.5: Performance fixes** — Loading screen title + time expectation, system prompt tuned to 8 movies, max_tokens 4500, conciseness rules, token logging, response times 44–57s → 35–44s (Feb 25, 2026)
+- ✅ **Step 2.5: Mobile-native experience** — Bottom sheet panel, touch-aware nodes, horizontal pill scroll, responsive typography (Feb 25, 2026)
+- ✅ **v2 Production port** — Four thread types, new questionnaire, UI/UX overhaul shipped to production
+- ✅ **Step 3.5: Progressive teaser loading system** — Dual parallel API calls (Sonnet + Haiku), sentence queue with two paths, camera aperture iris animation, background particle amplification, Georgia italic typography, progress dots removed (Mar 9, 2026)
+- ✅ **Custom domain** — watchfilament.com purchased (Namecheap, Mar 9, 2026), DNS configured, connected to Vercel production
+- ✅ **Step 4: Share sheet redesign** — Desktop popover + mobile bottom sheet. Tweet This (dynamic tweet construction with title, thread name, hashtag) + Copy Link (copied/failed states). Share button purple tint while open. (Mar 9, 2026)
+- ✅ **Step 4: Cold visitor CTA banner** — Appears on `/c/[id]` shared URLs via `isShared` flag. Desktop full text + CTA, mobile compact. `?ref=shared` auto-focuses search input on homepage. Dismiss persists in session state. (Mar 9, 2026)
+- ✅ **Step 4: Pro feature visibility** — "1 search remaining" toast (2500ms delay, 9s auto-dismiss, session suppression). Paywall modal with Monthly ($6), Annual ($49), Lifetime ($79) pricing. Placeholder checkout URLs. Non-dismissible overlay, constellation preserved in state on close. (Mar 9, 2026)
+- ✅ **Teaser loading race condition fixed** — Two bugs: guided mode passed full prompt to teasers API (fixed to concise mood sentence); empty array `[]` treated as truthy poisoned `teasersAppliedRef` (fixed with `t && t.length` guard). (Mar 9, 2026)
+- ✅ **Canonical domain** — All shareable URLs (Tweet This + Copy Link) now hardcoded to `watchfilament.com/c/[id]`. (Mar 9, 2026)
+- ✅ **Teaser prompt direction fix** — Teasers now point outward at other films in the constellation, not back at the searched title. System prompt updated with explicit rule: "Teasers must be about OTHER films, never the one the user searched for." User prompt updated to pass searched title explicitly as context for what NOT to describe. (Mar 10, 2026)
+- ✅ **Teaser length and tone fix** — System prompt now enforces 8-15 word limit per teaser, demands concrete details (place, person, visual), bans abstract/flowery language, and frames tone as "like a friend giving you a quick exciting hint." Teasers now render as a single line on mobile within the 4.5s display window. (Mar 10, 2026)
+- ✅ **Tweet copy redesign** — Tweet formula replaced entirely. Old formula exposed internal product language (thread names, "mapped", "constellation") that meant nothing to cold readers. New formula: `Typed "[TITLE]" into this film discovery tool. The thematic rabbit hole it came back with — I've never seen anything like it. [url] #FilmTwitter`. Title hashtag logic removed. #FilmTwitter is the only hashtag. (Mar 10, 2026)
+- ✅ **Supabase Auth** — Google OAuth + email/password sign-in. Session persisted via localStorage. Hybrid rate limiting: user_id-based for logged-in users, IP-based for anonymous. Pro users (profiles.is_pro = true) get searchesRemaining = -1 (unlimited). AuthModal + AuthButton components added to landing and constellation header. (Mar 11, 2026)
+- ✅ **Fixed constellation API crash** — `createClient` at module init threw "supabaseUrl is required" when SUPABASE_URL env var was missing at cold start. Fixed with defensive conditional init + early-exit guard in handler returning clean 500 instead of crash. Added console.log for request debug. SUPABASE_URL and SUPABASE_ANON_KEY must be set in Vercel env vars. (Mar 11, 2026)
 
-### Completed
-- [x] Initial prototype built and deployed to Vercel
-- [x] Core constellation generation working (title search + guided mode)
-- [x] Interactive force-directed graph with full UI
-- [x] Project context file created
-- [x] **Step 1: Infrastructure Architect** — Supabase database live, constellations + search_logs tables, RLS policies, generate_share_id function, rate limiting (5/IP/24hr), error recovery (Feb 13, 2026)
-- [x] **Step 2: Product Engineer — Growth Features** — Shareable URLs (/c/[shareId]), share button with copy-to-clipboard, rate limit UX, searches remaining counter (Feb 13, 2026)
-- [x] **Creative Director work** — Four cinema thread types designed, guided questionnaire redesigned (64 combinations), UX improvements identified (Feb 17, 2026)
-- [x] **v2 Prototype** — Complete React artifact with all new features built as design reference (Feb 18, 2026)
-- [x] **v2 Prototype Review** — Reviewed and approved by Chief Strategist (Feb 18, 2026)
-- [x] **Performance Audit** — Technical Diagnostician identified latency sources and ranked interventions (Feb 25, 2026)
-- [x] **Performance Decisions** — CEO approved four pre-launch interventions; streaming and caching deferred to post-launch; Haiku model swap rejected to preserve quality (Feb 25, 2026)
-- [x] **Step 2.5: Pre-Launch Performance Fixes** — Loading screen shows searched title + honest time expectation ("up to a minute"), system prompt updated to exactly 8 movies (Feb 25, 2026). Cold start cron blocked by Hobby plan (UptimeRobot alternative pending); non-blocking DB writes reverted (Vercel terminates function after res.json()).
-- [x] **Response time regression identified and fixed** — Constraining prompt rule rewritten to simple heuristic, max_tokens 8000→4500, conciseness rule added (2-3 sentence desc cap, 3500 token budget), token usage logging added to Vercel function logs. Response times: 44-57s → 35-44s (Feb 25, 2026)
-- [x] **Loading screen time expectation updated** — Message changed to "This can take up to a minute, we're doing the deep work" to reflect honest current performance (Feb 25, 2026)
-- [x] **Mobile-native experience deployed** — Touch-aware node selection, bottom sheet detail panel, horizontal pill scroll, disabled drag, pinch-zoom prevention, responsive typography, isMobile breakpoint at 768px. Tested on Pixel 10 Pro / Chrome (Feb 25, 2026)
-- [x] **Monetization strategy session complete** — LTD + subscription model confirmed ($79 LTD / $6 month / $49 year), 3-search free tier approved, social strategy confirmed (Film Twitter primary, Reddit secondary), UX requirements identified (share sheet, cold visitor CTA, Pro visibility), launch sequencing established, CEO action items defined (Feb 25, 2026)
+---
 
-### In Progress
-- [ ] *Nothing currently in progress*
+## Pre-Launch Checklist (Remaining)
 
-### Up Next
-1. **Activate UX Agent (Agent 10)** — design specifications for share sheet redesign, cold visitor CTA, and Pro feature visibility before paywall *(Chief Strategist writes activation prompt)*
-2. **Activate Social Media Agent (Agent 11)** — tweet templates, Reddit playbook, founder post templates, launch content *(runs in parallel with UX Agent)*
-3. **CEO: Apply to Mubi and Amazon Associates affiliates**
-4. **CEO: Confirm Filament Twitter/X account exists**
-5. **CEO: Confirm LTD seat cap (100 seats)**
-6. **UptimeRobot cold start prevention** — free external pinger, no code required, ~5 minutes to set up at uptimerobot.com
-7. **Step 3: v2 port** — four thread types, new questionnaire, UI/UX overhaul
+**CEO actions (no agents needed):**
+- [ ] Apply to Mubi affiliate program
+- [ ] Apply to Amazon Associates
+- [ ] Confirm Twitter/X account exists + claim @watchfilament handle
+- [ ] Create Stripe account (required before Stripe session)
+- [ ] Set up UptimeRobot (free, no code — ping watchfilament.com every 5 min for cold start prevention)
+
+**Next agent sessions (in order):**
+- [ ] Stripe session (Claude Code) — Stripe live, rate limit 5→3, placeholder checkout URLs replaced
+- [ ] Social Media Agent — tweet templates, Reddit playbook
+- [ ] Analytics — Plausible or PostHog (decision needed before this session)
+- [ ] Legal — ToS, privacy policy
+
+**Do not begin community launch until Stripe session and Social Media Agent are complete.**
+
+---
+
+## Known Mismatches To Fix At Stripe Session
+
+**Rate limit copy vs server enforcement mismatch:**
+The Pro paywall modal copy says "You've used your 3 free searches for today" but the server currently enforces 5 searches. This is intentional — the copy is forward-looking. At the start of the Stripe integration session, Claude Code must simultaneously: (1) reduce server-side rate limit from 5 to 3 in `api/constellation.js`, and (2) confirm Stripe checkout URLs are live and replace the three placeholder URLs (`/checkout/monthly`, `/checkout/annual`, `/checkout/lifetime`). Do not change the server limit without Stripe being live.
+
+---
+
+## Open Questions / Pending Decisions
+
+- **UptimeRobot cold start prevention** — Set up free external ping every 5 minutes to keep serverless function warm. No code required. Pending CEO action.
+- **Analytics tool** — Plausible vs PostHog not yet decided. Decision needed before analytics session.
+- **LTD seat cap** — 100 seats recommended by Monetization Strategist. CEO to confirm before Stripe session.
+- **Stripe account** — Needs to be created by CEO before Claude Code can implement paywall.

@@ -3,17 +3,15 @@ import { createClient } from '@supabase/supabase-js';
 // ============================================================
 // SUPABASE ADMIN CLIENT
 // ============================================================
-// Uses service role key for full database access (bypasses RLS)
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-);
+// Defensive init — createClient throws "supabaseUrl is required" if env vars
+// are missing at cold start. Guard here so the error is surfaced clearly.
+const supabaseAdmin = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+  ? createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+  : null;
 
 // ============================================================
 // SYSTEM PROMPT FOR CLAUDE
@@ -225,6 +223,12 @@ async function callClaudeAPI(prompt, retryCount = 0) {
 // MAIN HANDLER
 // ============================================================
 export default async function handler(req, res) {
+  // Guard: env vars must be present (crash prevention)
+  if (!supabaseAdmin) {
+    console.error('constellation: missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    return res.status(500).json({ error: 'Server configuration error — contact support.' });
+  }
+
   // Only allow POST requests
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -237,6 +241,7 @@ export default async function handler(req, res) {
   }
 
   const ipAddress = getClientIp(req);
+  console.log('constellation: request from', ipAddress, '| auth header present:', !!req.headers['authorization']);
 
   // ============================================================
   // Extract authenticated user from Authorization header (optional)
