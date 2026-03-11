@@ -91,7 +91,7 @@ function generateShareId() {
 //   - Anonymous users: 5/day by IP
 // ============================================================
 async function checkRateLimit(ipAddress, userId) {
-  const LIMIT = 5;
+  const LIMIT = 3;
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
   if (userId) {

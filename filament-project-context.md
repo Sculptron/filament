@@ -227,7 +227,7 @@ Eight defined roles. Seven executed through one Claude Code instance on one code
 | 3 | Creative Director + Product Engineer | v2 port: four thread types, new questionnaire, UI/UX overhaul | ✅ COMPLETED (date TBC) |
 | 3.5 | Product Engineer | Progressive teaser loading, iris animation, particle amplification | ✅ COMPLETED Mar 9 |
 | 4 | UX/UI Specialist + Product Engineer | Share sheet, cold visitor CTA, Pro feature visibility | ✅ COMPLETED Mar 9 |
-| **5** | **Monetization (Stripe)** | **Stripe live, rate limit 5→3, placeholder URLs replaced** | **← NEXT SESSION** |
+| 5 | Monetization (Stripe) | Stripe live, rate limit 5→3, placeholder URLs replaced | ✅ COMPLETED Mar 11 |
 | 6 | Social Media Agent | Tweet templates, Reddit playbook, launch content | Pending |
 | 7 | Analytics | Plausible/PostHog, event tracking | Pending |
 | 8 | Legal | ToS, privacy policy | Pending |
@@ -257,6 +257,7 @@ Eight defined roles. Seven executed through one Claude Code instance on one code
 - ✅ **Tweet copy redesign** — Tweet formula replaced entirely. Old formula exposed internal product language (thread names, "mapped", "constellation") that meant nothing to cold readers. New formula: `Typed "[TITLE]" into this film discovery tool. The thematic rabbit hole it came back with — I've never seen anything like it. [url] #FilmTwitter`. Title hashtag logic removed. #FilmTwitter is the only hashtag. (Mar 10, 2026)
 - ✅ **Supabase Auth** — Google OAuth + email/password sign-in. Session persisted via localStorage. Hybrid rate limiting: user_id-based for logged-in users, IP-based for anonymous. Pro users (profiles.is_pro = true) get searchesRemaining = -1 (unlimited). AuthModal + AuthButton components added to landing and constellation header. (Mar 11, 2026)
 - ✅ **Fixed constellation API crash** — `createClient` at module init threw "supabaseUrl is required" when SUPABASE_URL env var was missing at cold start. Fixed with defensive conditional init + early-exit guard in handler returning clean 500 instead of crash. Added console.log for request debug. SUPABASE_URL and SUPABASE_ANON_KEY must be set in Vercel env vars. (Mar 11, 2026)
+- ✅ **Step 5: Stripe monetization live** — `api/checkout.js` creates Stripe Checkout Sessions for Monthly ($6), Annual ($49), Lifetime ($79). `api/webhook.js` handles `checkout.session.completed` and sets `profiles.is_pro = true`. Rate limit reduced 5→3 atomically. PaywallModal wired to real checkout API (session required, inline sign-in prompt if not). Pro badge displayed in constellation header when unlimited. Checkout success toast on return from Stripe. (Mar 11, 2026)
 
 ---
 

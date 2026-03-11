@@ -394,7 +394,7 @@ function LoadingView({ searchQuery, isGuided, teasers }) {
 }
 
 // === PAYWALL MODAL ===
-function MonthlyCard() {
+function MonthlyCard({ onCheckout, loading }) {
   return (
     <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:16}}>
       <div style={{display:"flex",alignItems:"baseline",gap:4}}>
@@ -403,16 +403,17 @@ function MonthlyCard() {
       </div>
       <p style={{fontSize:12,color:"#666",margin:"2px 0 14px"}}>Monthly</p>
       <button
-        onClick={()=>window.location.href='/checkout/monthly'}
-        style={{width:"100%",padding:"10px 0",borderRadius:6,background:"rgba(199,125,255,0.10)",border:"1px solid rgba(199,125,255,0.30)",color:"#C77DFF",fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit"}}
-        onMouseEnter={e=>e.currentTarget.style.background="rgba(199,125,255,0.18)"}
+        onClick={()=>onCheckout('monthly')}
+        disabled={!!loading}
+        style={{width:"100%",padding:"10px 0",borderRadius:6,background:"rgba(199,125,255,0.10)",border:"1px solid rgba(199,125,255,0.30)",color:"#C77DFF",fontSize:13,fontWeight:500,cursor:loading?"default":"pointer",opacity:loading?0.7:1,fontFamily:"inherit"}}
+        onMouseEnter={e=>{if(!loading)e.currentTarget.style.background="rgba(199,125,255,0.18)"}}
         onMouseLeave={e=>e.currentTarget.style.background="rgba(199,125,255,0.10)"}
-      >Start Monthly →</button>
+      >{loading==='monthly' ? 'Redirecting...' : 'Start Monthly →'}</button>
     </div>
   );
 }
 
-function AnnualCard() {
+function AnnualCard({ onCheckout, loading }) {
   return (
     <div style={{background:"rgba(199,125,255,0.07)",border:"1px solid rgba(199,125,255,0.28)",borderRadius:10,padding:16,position:"relative"}}>
       <span style={{position:"absolute",top:-1,right:12,background:"#C77DFF",color:"#0a0a0f",fontSize:9,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",padding:"3px 7px",borderRadius:"0 0 5px 5px"}}>BEST VALUE</span>
@@ -423,22 +424,56 @@ function AnnualCard() {
       <p style={{fontSize:11,color:"#666",margin:"2px 0 0"}}>($4.08 / month)</p>
       <p style={{fontSize:12,color:"#888",margin:"0 0 14px"}}>Annual</p>
       <button
-        onClick={()=>window.location.href='/checkout/annual'}
-        style={{width:"100%",padding:"10px 0",borderRadius:6,background:"#C77DFF",color:"#0a0a0f",border:"none",fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit"}}
-        onMouseEnter={e=>e.currentTarget.style.background="#b56ef0"}
+        onClick={()=>onCheckout('annual')}
+        disabled={!!loading}
+        style={{width:"100%",padding:"10px 0",borderRadius:6,background:"#C77DFF",color:"#0a0a0f",border:"none",fontSize:13,fontWeight:500,cursor:loading?"default":"pointer",opacity:loading?0.7:1,fontFamily:"inherit"}}
+        onMouseEnter={e=>{if(!loading)e.currentTarget.style.background="#b56ef0"}}
         onMouseLeave={e=>e.currentTarget.style.background="#C77DFF"}
-      >Start Annual →</button>
+      >{loading==='annual' ? 'Redirecting...' : 'Start Annual →'}</button>
     </div>
   );
 }
 
-function PaywallModal({ context, onClose }) {
+function PaywallModal({ context, onClose, session, onSignIn }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [checkoutLoading, setCheckoutLoading] = useState(null); // null | 'monthly' | 'annual' | 'lifetime'
+  const [checkoutError, setCheckoutError] = useState(null);
+
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', h);
     return () => window.removeEventListener('resize', h);
   }, []);
+
+  const handleCheckout = async (plan) => {
+    setCheckoutError(null);
+    if (!session) {
+      // Need to sign in first — open auth modal (paywall stays open underneath)
+      onSignIn();
+      return;
+    }
+    setCheckoutLoading(plan);
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setCheckoutError(data.error || 'Failed to start checkout. Please try again.');
+        setCheckoutLoading(null);
+      }
+    } catch {
+      setCheckoutError('Network error. Please try again.');
+      setCheckoutLoading(null);
+    }
+  };
 
   const subheadline = context === 'blocked'
     ? "You've used your 3 free searches for today. Come back tomorrow — or join Pro for unlimited exploration."
@@ -479,22 +514,31 @@ function PaywallModal({ context, onClose }) {
       </div>
 
       {/* Pricing cards */}
+      {!session && (
+        <div style={{background:"rgba(199,125,255,0.07)",border:"1px solid rgba(199,125,255,0.18)",borderRadius:8,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+          <p style={{fontSize:13,color:"#bbb",margin:0}}>Sign in to subscribe</p>
+          <button onClick={onSignIn} style={{fontSize:12,color:"#C77DFF",background:"none",border:"1px solid rgba(199,125,255,0.35)",borderRadius:6,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Sign in →</button>
+        </div>
+      )}
+      {checkoutError && (
+        <p style={{fontSize:12,color:"#FF6B6B",margin:"0 0 10px",textAlign:"center"}}>{checkoutError}</p>
+      )}
       <div style={{display:isMobile?"flex":"grid",flexDirection:isMobile?"column":undefined,gridTemplateColumns:isMobile?undefined:"1fr 1fr",gap:10,marginBottom:10}}>
-        {isMobile && <AnnualCard />}
-        <MonthlyCard />
-        {!isMobile && <AnnualCard />}
+        {isMobile && <AnnualCard onCheckout={handleCheckout} loading={checkoutLoading} />}
+        <MonthlyCard onCheckout={handleCheckout} loading={checkoutLoading} />
+        {!isMobile && <AnnualCard onCheckout={handleCheckout} loading={checkoutLoading} />}
       </div>
 
       {/* Lifetime */}
       <div
-        onClick={()=>window.location.href='/checkout/lifetime'}
-        style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:8,padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",transition:"all 150ms"}}
-        onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(199,125,255,0.16)";e.currentTarget.style.background="rgba(255,255,255,0.035)";}}
+        onClick={()=>handleCheckout('lifetime')}
+        style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:8,padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:checkoutLoading?"default":"pointer",opacity:checkoutLoading&&checkoutLoading!=='lifetime'?0.6:1,transition:"all 150ms"}}
+        onMouseEnter={e=>{if(!checkoutLoading){e.currentTarget.style.borderColor="rgba(199,125,255,0.16)";e.currentTarget.style.background="rgba(255,255,255,0.035)";}}}
         onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(255,255,255,0.07)";e.currentTarget.style.background="rgba(255,255,255,0.02)";}}
       >
         <div>
           <p style={{fontSize:14,fontWeight:500,color:"#fff",margin:0}}>Lifetime Access</p>
-          <p style={{fontSize:12,color:"#888",margin:"2px 0 0"}}>One-time payment, yours forever.</p>
+          <p style={{fontSize:12,color:"#888",margin:"2px 0 0"}}>{checkoutLoading==='lifetime' ? 'Redirecting to checkout...' : 'One-time payment, yours forever.'}</p>
         </div>
         <div style={{textAlign:"right",flexShrink:0}}>
           <p style={{fontSize:20,fontWeight:600,color:"#fff",margin:0}}>$79</p>
@@ -634,14 +678,14 @@ function AuthModal({ onClose, onAuthSuccess }) {
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', zIndex: 400 }} onClick={onClose} />
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', zIndex: 450 }} onClick={onClose} />
       {isMobile ? (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 401, maxHeight: '90vh', overflowY: 'auto', background: 'rgba(12,12,20,0.98)', backdropFilter: 'blur(24px)', borderTop: '1px solid rgba(199,125,255,0.18)', borderRadius: '20px 20px 0 0', padding: '0 20px env(safe-area-inset-bottom, 24px)' }}>
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 451, maxHeight: '90vh', overflowY: 'auto', background: 'rgba(12,12,20,0.98)', backdropFilter: 'blur(24px)', borderTop: '1px solid rgba(199,125,255,0.18)', borderRadius: '20px 20px 0 0', padding: '0 20px env(safe-area-inset-bottom, 24px)' }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)', margin: '12px auto 20px' }} />
           {inner}
         </div>
       ) : (
-        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 401, width: 420, background: 'rgba(12,12,20,0.97)', backdropFilter: 'blur(24px)', border: '1px solid rgba(199,125,255,0.18)', borderRadius: 16, padding: '40px 36px 32px', boxShadow: '0 24px 64px rgba(0,0,0,0.65)' }}>
+        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 451, width: 420, background: 'rgba(12,12,20,0.97)', backdropFilter: 'blur(24px)', border: '1px solid rgba(199,125,255,0.18)', borderRadius: 16, padding: '40px 36px 32px', boxShadow: '0 24px 64px rgba(0,0,0,0.65)' }}>
           {inner}
         </div>
       )}
@@ -955,6 +999,9 @@ function ConstellationView({ data, onBack, searchesRemaining, searchQuery, coldV
         <button onClick={onBack} style={{background:"#0a0a0f99",backdropFilter:"blur(8px)",border:"1px solid #333",color:"#888",borderRadius:8,padding:isMobile?"8px 16px":"6px 14px",fontSize:12,cursor:"pointer",letterSpacing:0.5}}>← Back</button>
         <h1 style={{fontSize:22,fontWeight:200,letterSpacing:5,margin:0,color:"#fff",textTransform:"uppercase"}}>Filament</h1>
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
+          {searchesRemaining === -1 && (
+            <span style={{fontSize:10,fontWeight:600,color:"#C77DFF",background:"rgba(199,125,255,0.12)",border:"1px solid rgba(199,125,255,0.30)",borderRadius:4,padding:"2px 7px",letterSpacing:"0.06em",textTransform:"uppercase"}}>Pro</span>
+          )}
           {searchesRemaining !== null && searchesRemaining !== undefined && searchesRemaining !== -1 && (
             <span style={{fontSize:11,color:"#666",letterSpacing:0.5}}>
               {searchesRemaining} search{searchesRemaining !== 1 ? 'es' : ''} remaining today
@@ -1421,6 +1468,7 @@ export default function App() {
   // Auth state
   const [session, setSession] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [checkoutSuccessToast, setCheckoutSuccessToast] = useState(false);
 
   // Bootstrap Supabase session on mount + listen for auth changes
   useEffect(() => {
@@ -1430,6 +1478,13 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
+    // Detect Stripe checkout success redirect
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      setCheckoutSuccessToast(true);
+      window.history.replaceState({}, '', '/');
+      setTimeout(() => setCheckoutSuccessToast(false), 7000);
+    }
     return () => subscription.unsubscribe();
   }, []);
 
@@ -1586,7 +1641,18 @@ export default function App() {
         </div>
       )}
       {paywallContext && (
-        <PaywallModal context={paywallContext} onClose={() => setPaywallContext(null)} />
+        <PaywallModal
+          context={paywallContext}
+          onClose={() => setPaywallContext(null)}
+          session={session}
+          onSignIn={() => setShowAuthModal(true)}
+        />
+      )}
+      {checkoutSuccessToast && (
+        <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:500,background:"rgba(10,10,15,0.96)",backdropFilter:"blur(20px)",border:"1px solid rgba(199,125,255,0.35)",borderRadius:10,padding:"14px 20px",boxShadow:"0 8px 32px rgba(0,0,0,0.5)",maxWidth:"90vw",textAlign:"center",animation:"toastDeskIn 300ms ease-out"}}>
+          <p style={{margin:0,fontSize:14,color:"#fff",fontWeight:500}}>Payment successful — welcome to Pro! 🎉</p>
+          <p style={{margin:"4px 0 0",fontSize:12,color:"#888"}}>Your unlimited searches will be active on your next search.</p>
+        </div>
       )}
       {showAuthModal && (
         <AuthModal
