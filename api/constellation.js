@@ -87,11 +87,48 @@ function generateShareId() {
 }
 
 // ============================================================
-// HELPER: Check rate limit (5 searches per 24 hours per IP)
+// HELPER: Hybrid rate limit (user-based if logged in, IP otherwise)
+//   - Pro users: unlimited (isPro: true, limit: -1)
+//   - Logged-in free users: 5/day by user_id
+//   - Anonymous users: 5/day by IP
 // ============================================================
-async function checkRateLimit(ipAddress) {
+async function checkRateLimit(ipAddress, userId) {
+  const LIMIT = 5;
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+  if (userId) {
+    // Check pro status first
+    try {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('is_pro')
+        .eq('id', userId)
+        .single();
+
+      if (profile?.is_pro === true) {
+        return { allowed: true, count: 0, limit: -1, isPro: true };
+      }
+    } catch {
+      // profiles table may not exist yet — treat as non-pro
+    }
+
+    // Logged-in non-pro: count by user_id
+    const { data, error } = await supabaseAdmin
+      .from('search_logs')
+      .select('id')
+      .eq('user_id', userId)
+      .gte('created_at', twentyFourHoursAgo);
+
+    if (error) {
+      console.error('Rate limit check error (user):', error);
+      return { allowed: true, count: 0, limit: LIMIT };
+    }
+
+    const count = data.length;
+    return { allowed: count < LIMIT, count, limit: LIMIT };
+  }
+
+  // Anonymous: count by IP (existing behaviour)
   const { data, error } = await supabaseAdmin
     .from('search_logs')
     .select('id')
@@ -99,14 +136,12 @@ async function checkRateLimit(ipAddress) {
     .gte('created_at', twentyFourHoursAgo);
 
   if (error) {
-    console.error('Rate limit check error:', error);
-    return { allowed: true, count: 0 }; // Fail open (allow on error)
+    console.error('Rate limit check error (ip):', error);
+    return { allowed: true, count: 0, limit: LIMIT };
   }
 
-  const searchCount = data.length;
-  const allowed = searchCount < 5;
-
-  return { allowed, count: searchCount, limit: 5 };
+  const count = data.length;
+  return { allowed: count < LIMIT, count, limit: LIMIT };
 }
 
 // ============================================================
@@ -203,11 +238,29 @@ export default async function handler(req, res) {
 
   const ipAddress = getClientIp(req);
 
+  // ============================================================
+  // Extract authenticated user from Authorization header (optional)
+  // Fail open on any error — anonymous rate limiting applies as fallback
+  // ============================================================
+  let userId = null;
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    try {
+      const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+      if (!authError && user) {
+        userId = user.id;
+      }
+    } catch {
+      // Invalid/expired token — treat as anonymous
+    }
+  }
+
   try {
     // ============================================================
     // STEP 1: Check rate limit
     // ============================================================
-    const rateLimitCheck = await checkRateLimit(ipAddress);
+    const rateLimitCheck = await checkRateLimit(ipAddress, userId);
 
     if (!rateLimitCheck.allowed) {
       return res.status(429).json({
@@ -257,6 +310,7 @@ export default async function handler(req, res) {
       .from('search_logs')
       .insert({
         ip_address: ipAddress,
+        user_id: userId || null,
         session_id: req.headers['x-vercel-id'] || null,
         search_type: searchType,
         query_text: prompt,
@@ -271,10 +325,14 @@ export default async function handler(req, res) {
     // ============================================================
     // STEP 5: Return constellation with metadata
     // ============================================================
+    const searchesRemaining = rateLimitCheck.isPro
+      ? -1
+      : rateLimitCheck.limit - (rateLimitCheck.count + 1);
+
     return res.status(200).json({
       ...constellation,
       shareId: shareId,
-      searchesRemaining: 5 - (rateLimitCheck.count + 1)
+      searchesRemaining
     });
 
   } catch (error) {
