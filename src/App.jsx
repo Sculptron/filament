@@ -616,9 +616,14 @@ function AuthModal({ onClose, onAuthSuccess }) {
     setLoading(true);
     setError(null);
     if (mode === 'signup') {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) setError(error.message);
-      else setEmailSent(true);
+      const { error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError) { setError(signUpError.message); setLoading(false); return; }
+      // Email confirmation is disabled — sign in immediately with same credentials
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+      if (signInError) { setError(signInError.message); setLoading(false); return; }
+      onAuthSuccess(data.session);
+      setEmailSent(true); // reuse state as "show success message"
+      setTimeout(onClose, 1500);
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) setError(error.message);
@@ -630,9 +635,8 @@ function AuthModal({ onClose, onAuthSuccess }) {
   const inputStyle = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid #333', borderRadius: 8, padding: '12px 14px', color: '#ddd', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' };
 
   const inner = emailSent ? (
-    <div style={{ textAlign: 'center', padding: '12px 0 8px' }}>
-      <p style={{ color: '#C77DFF', fontSize: 15, marginBottom: 16, lineHeight: 1.6 }}>Check your email for a confirmation link, then sign in.</p>
-      <button onClick={onClose} style={{ color: '#666', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13 }}>Close</button>
+    <div style={{ textAlign: 'center', padding: '20px 0 12px' }}>
+      <p style={{ color: '#C77DFF', fontSize: 15, marginBottom: 8, lineHeight: 1.6 }}>Account created! You're now signed in.</p>
     </div>
   ) : (
     <div style={{ position: 'relative' }}>
