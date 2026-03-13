@@ -453,6 +453,7 @@ function PaywallModal({ context, onClose, session, onSignIn }) {
       return;
     }
     setCheckoutLoading(plan);
+    window.posthog?.capture('upgrade_clicked', { plan });
     try {
       const res = await fetch('/api/checkout', {
         method: 'POST',
@@ -909,6 +910,7 @@ function ConstellationView({ data, onBack, searchesRemaining, searchQuery, coldV
       }
       setCopyState('copied');
       setTimeout(() => setCopyState('idle'), 2000);
+      window.posthog?.capture('constellation_shared', { method: 'copy_link' });
     } catch {
       setCopyState('failed');
       setTimeout(() => setCopyState('idle'), 2000);
@@ -1031,7 +1033,7 @@ function ConstellationView({ data, onBack, searchesRemaining, searchQuery, coldV
                   {/* Popover */}
                   <div style={{position:"absolute",top:"calc(100% + 8px)",right:0,zIndex:200,width:220,background:"rgba(10,10,15,0.96)",backdropFilter:"blur(20px)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,boxShadow:"0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)",padding:6,animation:"shareSheetIn 150ms ease-out"}}>
                     <SheetRow
-                      onClick={()=>{ if(tweetUrl){ setShowShareSheet(false); window.open(tweetUrl,'_blank'); } }}
+                      onClick={()=>{ if(tweetUrl){ setShowShareSheet(false); window.posthog?.capture('constellation_shared', { method: 'tweet' }); window.open(tweetUrl,'_blank'); } }}
                       icon={<IconTwitter color={tweetUrl?"#888":"#555"}/>}
                       label="Tweet This"
                     />
@@ -1266,7 +1268,7 @@ function ConstellationView({ data, onBack, searchesRemaining, searchQuery, coldV
             <p style={{fontSize:11,fontWeight:500,color:"#555555",letterSpacing:"0.1em",textTransform:"uppercase",textAlign:"center",padding:"6px 20px 14px",margin:0}}>Share Constellation</p>
             <div style={{padding:"0 6px 16px"}}>
               <div
-                onClick={()=>{ if(tweetUrl){ setShowShareSheet(false); window.open(tweetUrl,'_blank'); } }}
+                onClick={()=>{ if(tweetUrl){ setShowShareSheet(false); window.posthog?.capture('constellation_shared', { method: 'tweet' }); window.open(tweetUrl,'_blank'); } }}
                 style={{height:58,display:"flex",alignItems:"center",gap:14,padding:"0 24px",cursor:"pointer",borderRadius:6}}
                 onTouchStart={e=>e.currentTarget.style.background="rgba(255,255,255,0.06)"}
                 onTouchEnd={e=>e.currentTarget.style.background="transparent"}
@@ -1478,9 +1480,17 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user) {
+        window.posthog?.identify(session.user.id, { email: session.user.email });
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user) {
+        window.posthog?.identify(session.user.id, { email: session.user.email });
+      } else {
+        window.posthog?.reset();
+      }
     });
     // Detect Stripe checkout success redirect
     const params = new URLSearchParams(window.location.search);
@@ -1533,6 +1543,7 @@ export default function App() {
   const doSearch = async (prompt, searchType = 'title', teaserHint = null) => {
     // Block search if rate limit reached
     if (searchesRemaining === 0) {
+      window.posthog?.capture('paywall_hit', { trigger: 'limit_reached' });
       setPaywallContext('blocked');
       return;
     }
@@ -1542,6 +1553,7 @@ export default function App() {
     setTeasers(null);
     setLoadMsg("Mapping thematic connections");
     setView("loading");
+    window.posthog?.capture('search_initiated', { search_type: searchType });
 
     fetchTeasers(teaserHint || prompt).then(t => { if (t && t.length) setTeasers(t); }).catch(() => {});
 
@@ -1550,6 +1562,7 @@ export default function App() {
       setData(result);
       setSearchesRemaining(result.searchesRemaining);
       setView("constellation");
+      window.posthog?.capture('constellation_rendered', { search_type: searchType, movie_count: result.movies?.length, theme_count: result.themes?.length });
 
       if (result.shareId) {
         window.history.pushState({}, '', `/c/${result.shareId}`);
@@ -1558,6 +1571,7 @@ export default function App() {
       console.error(err);
 
       if (err.status === 429) {
+        window.posthog?.capture('paywall_hit', { trigger: 'rate_limit' });
         setPaywallContext('blocked');
       } else {
         setError(err.message || "Something went wrong. Please try again.");
