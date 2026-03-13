@@ -1453,8 +1453,8 @@ function Landing({ onExplore, onGuide, session, onSignIn, onSignOut }) {
           </button>
         </div>
       </div>
-      <div style={{textAlign:'center',padding:'0 0 24px',color:'rgba(255,255,255,0.35)',fontSize:12,letterSpacing:0.3}}>
-        © 2026 Sculptron Ink
+      <div style={{textAlign:'center',padding:'48px 0 24px',color:'rgba(255,255,255,0.35)',fontSize:12,letterSpacing:0.3}}>
+        © 2026 Firoz Inc.
         <span style={{margin:'0 8px',opacity:0.5}}>·</span>
         <Link to="/terms" style={{color:'rgba(255,255,255,0.35)',textDecoration:'none'}} onMouseEnter={e=>e.currentTarget.style.color='rgba(255,255,255,0.6)'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.35)'}>Terms of Service</Link>
         <span style={{margin:'0 8px',opacity:0.5}}>·</span>
