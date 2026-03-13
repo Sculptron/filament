@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import * as d3 from "d3-force";
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { supabase } from "./supabaseClient.js";
+import TermsOfService from './pages/TermsOfService.jsx';
+import PrivacyPolicy from './pages/PrivacyPolicy.jsx';
 
 const TCOLORS = ["#4ECDC4","#C77DFF","#FF6B6B","#4D96FF","#6BCB77","#FFD93D","#FF8C42","#E0AAFF","#00B4D8","#FF477E"];
 
@@ -1450,12 +1453,19 @@ function Landing({ onExplore, onGuide, session, onSignIn, onSignOut }) {
           </button>
         </div>
       </div>
+      <div style={{textAlign:'center',padding:'0 0 24px',color:'rgba(255,255,255,0.35)',fontSize:12,letterSpacing:0.3}}>
+        © 2026 Sculptron Ink
+        <span style={{margin:'0 8px',opacity:0.5}}>·</span>
+        <Link to="/terms" style={{color:'rgba(255,255,255,0.35)',textDecoration:'none'}} onMouseEnter={e=>e.currentTarget.style.color='rgba(255,255,255,0.6)'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.35)'}>Terms of Service</Link>
+        <span style={{margin:'0 8px',opacity:0.5}}>·</span>
+        <Link to="/privacy" style={{color:'rgba(255,255,255,0.35)',textDecoration:'none'}} onMouseEnter={e=>e.currentTarget.style.color='rgba(255,255,255,0.6)'} onMouseLeave={e=>e.currentTarget.style.color='rgba(255,255,255,0.35)'}>Privacy Policy</Link>
+      </div>
     </div>
   );
 }
 
 // === APP ===
-export default function App() {
+function MainApp() {
   const [view, setView] = useState("landing");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1679,5 +1689,17 @@ export default function App() {
         />
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/*" element={<MainApp />} />
+      </Routes>
+    </Router>
   );
 }
