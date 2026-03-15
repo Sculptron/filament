@@ -11,8 +11,8 @@ tagline: AI-powered thematic movie discovery via constellation maps
 status: Live & Monetized — Warm-Up Week In Progress
 phase: Step 6 of 8
 progress: 92
-last_touched: 2026-03-13
-next_milestone: Complete warm-up week → activate Social Media Strategy Agent → launch push to Film Twitter and Reddit
+last_touched: 2026-03-14
+next_milestone: Complete n8n server setup + Phase 1 account credentials → build social media automation (Session A) → launch push to Film Twitter and Reddit
 tasks:
   - "CEO: execute warm-up posts 4 and 5 on @watchfilament (copy ready)"
   - "CEO: begin active Film Twitter engagement (Day 4+) — 3-5 interactions/day"
@@ -20,6 +20,8 @@ tasks:
   - Activate Social Media Strategy Agent — tweet templates, Reddit playbook, launch content arsenal
   - "CEO: apply to Mubi affiliate program (mubi.com/partners)"
   - "CEO: apply to Amazon Associates"
+  - Set up n8n server on Raspberry Pi 5 (infrastructure for social media automation)
+  - Complete Phase 1 account credential setup to unblock automation build sessions
 week_tasks:
   - priority: high
     task: "CEO: post warm-up posts 4 and 5 on @watchfilament"
@@ -29,6 +31,10 @@ week_tasks:
     task: "CEO: set up domain email hello@watchfilament.com"
   - priority: med
     task: "CEO: apply to Mubi + Amazon Associates affiliate programs"
+  - priority: high
+    task: "CEO: set up n8n server on Raspberry Pi 5"
+  - priority: high
+    task: "CEO: complete Phase 1 credential setup (LinkedIn OAuth, Upload-Post.com, Instagram Business, Firecrawl, Rettiwt-API, Google Sheet)"
 resources: watchfilament.com · github.com/Sculptron/filament · @watchfilament
 parked: false
 END_DASHBOARD_SNAPSHOT -->
@@ -306,6 +312,75 @@ Appears when `isShared === true` (user arrived via `/c/[id]` URL):
 
 ---
 
+## Social Media Automation System
+
+A full social media automation architecture has been designed and
+locked (March 14, 2026). It sits on top of a weekly content cadence
+and reduces CEO social media effort to ~65 minutes per week.
+
+### Weekly Cadence
+
+| Block | Day | Time | What Happens |
+|---|---|---|---|
+| Review Brief + approve copy | Monday | 15 min | Read AI-generated drafts, approve or edit |
+| CapCut Reel edit | Monday | 20 min | Screen record best constellation, export vertical MP4 |
+| Tweet + Reel upload + Reddit reply | Wednesday | 20 min | 2-click publish tweet, upload Reel, paste Reddit reply |
+| Read Sunday digest + drop theme note | Sunday | 10 min | Review week's performance, note theme for next week |
+| **Total** | | **~65 min/week** | |
+
+### Automation Architecture — Tool Stack (~$2/month)
+
+| Tool | Purpose | Cost |
+|---|---|---|
+| n8n (self-hosted on Raspberry Pi 5) | Full automation backbone — all pipelines and crons | $0 |
+| n8n native Reddit node | Reddit subreddit monitoring via official Reddit API | $0 |
+| n8n community Twitter scraper node | Film Twitter keyword monitoring (primary) | $0 |
+| Firecrawl free tier | Twitter monitoring standby fallback (500 credits/mo) | $0 |
+| Browser-use framework | Twitter compose pre-fill — opens browser, pastes, attaches screenshot | $0 |
+| LinkedIn API via n8n | Auto-publish LinkedIn posts after Monday approval | $0 |
+| Upload-Post.com (free tier) | Simultaneous Instagram Reels + YouTube Shorts publishing | $0 |
+| CapCut | Manual 20-min Reel edit (deliberate manual step) | $0 |
+| Claude Code + Playwright MCP | Automated screenshots of watchfilament.com (3 crop ratios) | ~$2/mo |
+| PostHog (already live) | Social traffic + Pro conversion tracking in Sunday digest | $0 |
+
+### Saturday Night Factory (n8n cron, 11pm, unattended)
+Every Saturday night, n8n runs automatically with no CEO input:
+1. Queries Supabase for 3 best constellations from past 7 days
+   (ranked by thread richness, biased by CEO's Sunday theme note)
+2. Playwright MCP screenshots each constellation at 3 crop ratios
+   — square (Twitter), portrait 9:16 (Reels), wide (LinkedIn)
+   — 9 files total saved to output folder
+3. Twitter Film Twitter monitoring — community scraper node scans
+   #FilmTwitter, #Letterboxd, "what should I watch", "something
+   like [film]" — Claude scores, top 3 reply drafts generated
+   (Firecrawl free tier activates automatically if primary fails)
+4. Reddit monitoring — native n8n node scans r/TrueFilm, r/movies,
+   r/Letterboxd — Claude scores, top 1 reply draft generated
+5. Claude API generates all copy in one pass: tweet draft, Reddit
+   draft, LinkedIn post, Instagram caption
+6. Monday Morning Brief email sent to CEO inbox — all 9 screenshots
+   attached, all copy drafts included, all reply candidates with
+   direct post links
+
+### Key Decisions (Locked — Do Not Change)
+- Reddit posting is permanently human-in-the-loop — never automated
+- Twitter posting is 2-click manual publish (Browser-use pre-fills,
+  CEO clicks Post) — intentional for account safety on new account
+- LinkedIn auto-publishes after Monday approval — no Wednesday action
+- CapCut Reel edit stays manual — automation alternative ($27/mo)
+  was evaluated and rejected as not worth the cost
+- Firecrawl is standby fallback only — not the primary Twitter tool
+- Saturday night cron runs fully unattended — CEO does not initiate
+
+### Sunday Feedback Loop
+n8n compiles a Sunday digest: tweet engagement stats, Reddit
+performance, PostHog social traffic + Pro conversions for the week.
+CEO drops a 1-line theme note in a Google Sheet. n8n reads that note
+the following Saturday night to bias constellation selection. Loop
+closed.
+
+---
+
 ## Execution Order & Current Status
 
 | Step | Agent | What Gets Built | Status |
@@ -318,10 +393,12 @@ Appears when `isShared === true` (user arrived via `/c/[id]` URL):
 | 4 | UX/UI Specialist + Product Engineer | Share sheet, cold visitor CTA, Pro feature visibility | ✅ COMPLETED Mar 9 |
 | 5a | Infrastructure Architect + Product Engineer | Supabase Auth (Google + Email/Password), profiles table, hybrid rate limiting | ✅ COMPLETED Mar 11 |
 | 5b | Monetization | Stripe live, checkout, webhook, rate limit 5→3, Pro badge | ✅ COMPLETED Mar 11 |
-| **6** | **Social Media Agent** | **Tweet templates, Reddit playbook, launch content** | **← NEXT** |
+| 6a | Social Media Automation Architect | Weekly cadence + automation architecture designed | ✅ COMPLETED Mar 14 |
+| 6b | Claude Code (Session A) | n8n Saturday factory: Supabase query, Playwright screenshots, Claude copy, Twitter/Reddit monitoring, Monday Brief email | ⏳ Blocked — n8n server + Phase 1 credentials needed first |
+| 6c | Claude Code (Session B) | Distribution layer: Browser-use Twitter compose, LinkedIn API, Upload-Post.com, Sunday digest, Google Sheet feedback loop | ⏳ After Session A |
 | 7 | Analytics | Plausible/PostHog, event tracking | ✅ COMPLETED Mar 13 |
 | 8 | Legal | ToS, privacy policy | ✅ COMPLETED Mar 13 |
-| — | LAUNCH | Film Twitter + Reddit community push | Pending — after Step 6 (Social Media Agent) |
+| — | LAUNCH | Film Twitter + Reddit community push | Pending — after Steps 6b + 6c (automation build complete) |
 
 ---
 
@@ -356,6 +433,9 @@ Appears when `isShared === true` (user arrived via `/c/[id]` URL):
 - ✅ **PostHog analytics installed** — HTML snippet in index.html, VITE_POSTHOG_KEY env var in Vercel, 5 custom conversion funnel events instrumented: search_initiated, constellation_rendered, paywall_hit, upgrade_clicked, constellation_shared. User identification on session load. Confirmed firing in PostHog Live Events (Mar 13, 2026)
 - ✅ **Legal pages live** — watchfilament.com/terms (Terms of Service) and watchfilament.com/privacy (Privacy Policy) added as React pages via react-router-dom. Footer with copyright + legal links added to main page. Governed by Ontario/Canada law, PIPEDA compliant, GDPR section included. Contact: watchfilament@gmail.com (Mar 13, 2026)
 - ✅ **Twitter/X account live** — @watchfilament created, bio, profile picture, banner confirmed live. Pinned tweet: Eternal Sunshine of the Spotless Mind constellation (watchfilament.com/c/t7d509sy). Warm-up posts 1–3 live. Film Twitter engagement account list produced (Mar 13, 2026)
+- ✅ **Warm-up posts 4 and 5 posted** — All 5 warm-up posts now live on @watchfilament. Film Twitter engagement rhythm begun (Day 4+). Tier 1 accounts followed (Mar 13–14, 2026)
+- ✅ **Social media weekly cadence designed** — Full weekly content and posting cadence locked: Monday creation block (35 min), Wednesday distribution block (20 min), Sunday review block (10 min). Total ~65 min/week (Mar 14, 2026)
+- ✅ **Social media automation architecture locked** — 5-phase build plan designed. Tool stack: n8n self-hosted on Raspberry Pi 5, Playwright MCP screenshots, Browser-use Twitter compose pre-fill, LinkedIn API, Upload-Post.com, Firecrawl fallback, Google Sheet feedback loop. Total cost ~$2/month. Architecture approved by CEO after 6 iteration rounds (Mar 14, 2026)
 
 ---
 
@@ -388,3 +468,80 @@ Appears when `isShared === true` (user arrived via `/c/[id]` URL):
 
 - **LTD seat cap** — 100 seats recommended. CEO to confirm before updating paywall copy.
 - **Affiliate targets** — Mubi and Amazon Associates applications pending CEO action.
+
+---
+
+## Social Media Automation — Build Phases
+
+Full 31-step build plan to get automation operational. Phases 0
+and 1 are CEO actions. Phases 2–5 are Claude Code sessions.
+
+### Phase 0 — Infrastructure
+- [ ] Set up n8n server on Raspberry Pi 5
+- [ ] Confirm n8n accessible via stable URL for headless cron execution
+
+### Phase 1 — One-Time Account & Credential Setup (CEO actions)
+- [ ] Create Google Sheet for Sunday theme feedback loop
+      (one tab, one cell — theme bias input for Saturday cron)
+- [ ] Register LinkedIn OAuth app for n8n API connection
+- [ ] Create Upload-Post.com account, connect Instagram Business
+      + YouTube channel
+- [ ] Get Instagram Business account approved (Meta review — up to
+      2 hours, start this first as it has unpredictable timeline)
+- [ ] Get Firecrawl API key (free tier — firecrawl.dev)
+- [ ] Install n8n community Twitter scraper node + configure
+      Rettiwt-API credentials
+- [ ] Confirm PostHog read API key accessible for Sunday digest
+
+### Phase 2 — Session A Build (Claude Code)
+- [ ] Build Supabase query — 3 best constellations past 7 days,
+      ranked by thread richness, biased by Google Sheet theme note
+- [ ] Build Playwright MCP screenshot automation — navigate to
+      watchfilament.com, trigger constellation, wait for d3-force
+      physics to settle, capture square/portrait/wide crops, save
+      9 files to output folder
+- [ ] Build Claude API copy generation — tweet draft, Reddit draft,
+      LinkedIn post, Instagram caption in one pass per constellation
+- [ ] Build Twitter monitoring pipeline — community scraper node
+      primary, Firecrawl IF-node fallback, Claude scoring, top 3
+      reply drafts
+- [ ] Build Reddit monitoring pipeline — native n8n Reddit node,
+      r/TrueFilm + r/movies + r/Letterboxd, Claude scoring, top 1
+      reply draft
+- [ ] Build Monday Morning Brief email — all screenshots, copy
+      drafts, reply candidates in single email to CEO inbox
+- [ ] Wire Saturday night cron (11pm) to full pipeline
+- [ ] Build failure alerting — n8n error node emails CEO if cron
+      fails silently
+
+### Phase 3 — Session B Build (Claude Code)
+- [ ] Build Browser-use Python environment in n8n Python script node
+- [ ] Build Twitter compose pre-fill — Browser-use opens twitter.com
+      in CEO's logged-in browser, pastes approved tweet, attaches
+      square screenshot, leaves compose window ready for 2-click publish
+- [ ] Build LinkedIn auto-publish — fires at optimal Wednesday time
+      after Monday approval via official LinkedIn API
+- [ ] Build Upload-Post.com integration — sends CapCut MP4 + caption
+      for simultaneous Instagram Reels + YouTube Shorts publishing
+- [ ] Build Sunday digest — tweet engagement, Reddit performance,
+      PostHog social traffic + Pro conversions, sent to CEO inbox
+- [ ] Build Google Sheet feedback loop — reads theme note cell on
+      Saturday night, injects bias into Supabase constellation query
+
+### Phase 4 — End-to-End Testing
+- [ ] Dry run full Saturday cron manually — confirm 9 screenshots,
+      all copy drafts, Monday email arrives correctly
+- [ ] Test Twitter compose pre-fill — correct content in compose window
+- [ ] Test LinkedIn auto-publish with draft post
+- [ ] Test Upload-Post.com with test video
+- [ ] Test Sunday digest — confirm PostHog data pulls correctly
+- [ ] Test Google Sheet feedback loop — write theme note, confirm it
+      appears in next Saturday's constellation selection
+
+### Phase 5 — Go Live
+- [ ] Flip Saturday cron from manual trigger to scheduled (11pm weekly)
+- [ ] Run first live cycle end-to-end
+
+**Critical path:** Instagram Business account approval (Phase 1) has
+unpredictable timeline. Start immediately — it blocks Upload-Post.com
+integration in Session B.
