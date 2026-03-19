@@ -24,19 +24,15 @@ tasks:
   - "CEO: set up UptimeRobot — free, 15 min, ping watchfilament.com every 5 min (cold start prevention, overdue)"
 week_tasks:
   - priority: high
-    task: "CEO: begin Film Twitter daily engagement rhythm (Day 4+)"
+    task: "Session 1 — Filament Day: CEO: create @watchfilament Letterboxd account + publish first 3 constellation-derived lists (45-60 min)"
+  - priority: high
+    task: "Session 1 — Filament Day: CEO: set up UptimeRobot immediately (15 min, free, overdue)"
+  - priority: high
+    task: "Session 1 — Filament Day: CEO: begin Film Twitter daily engagement rhythm"
   - priority: med
-    task: "CEO: set up domain email hello@watchfilament.com"
+    task: "Session 1 — Filament Day: CEO: apply to Mubi + Amazon Associates affiliate programs"
   - priority: med
-    task: "CEO: apply to Mubi + Amazon Associates affiliate programs"
-  - priority: high
-    task: "CEO: set up n8n server on Raspberry Pi 5"
-  - priority: high
-    task: "CEO: complete Phase 1 credential setup (LinkedIn OAuth, Upload-Post.com, Instagram Business, Firecrawl, Rettiwt-API, Google Sheet)"
-  - priority: high
-    task: "CEO: create @watchfilament on Letterboxd, publish first 3 constellation-derived lists this week"
-  - priority: high
-    task: "CEO: set up UptimeRobot immediately (15 min, free)"
+    task: "Session 1 — Filament Day: CEO: set up domain email hello@watchfilament.com"
 resources: watchfilament.com · github.com/Sculptron/filament · @watchfilament
 parked: false
 END_DASHBOARD_SNAPSHOT -->
