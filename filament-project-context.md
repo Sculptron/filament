@@ -10,21 +10,19 @@ category: Dev Product
 tagline: AI-powered thematic movie discovery via constellation maps
 status: Live & Monetized — Warm-Up Week In Progress
 phase: Step 6 of 8
-progress: 92
-last_touched: 2026-03-14
-next_milestone: Complete n8n server setup + Phase 1 account credentials → build social media automation (Session A) → launch push to Film Twitter and Reddit
+progress: 95
+last_touched: 2026-03-19
+next_milestone: Execute brand-building actions (Letterboxd presence, Reddit participation, Film Twitter engagement) → complete n8n server + Phase 1 credentials → automation build
 tasks:
-  - "CEO: execute warm-up posts 4 and 5 on @watchfilament (copy ready)"
-  - "CEO: begin active Film Twitter engagement (Day 4+) — 3-5 interactions/day"
   - "CEO: upgrade contact email to hello@watchfilament.com before launch push"
   - Activate Social Media Strategy Agent — tweet templates, Reddit playbook, launch content arsenal
   - "CEO: apply to Mubi affiliate program (mubi.com/partners)"
   - "CEO: apply to Amazon Associates"
   - Set up n8n server on Raspberry Pi 5 (infrastructure for social media automation)
   - Complete Phase 1 account credential setup to unblock automation build sessions
+  - "CEO: create @watchfilament Letterboxd account and publish first 3 lists (45-60 min one-time task — highest priority brand action)"
+  - "CEO: set up UptimeRobot — free, 15 min, ping watchfilament.com every 5 min (cold start prevention, overdue)"
 week_tasks:
-  - priority: high
-    task: "CEO: post warm-up posts 4 and 5 on @watchfilament"
   - priority: high
     task: "CEO: begin Film Twitter daily engagement rhythm (Day 4+)"
   - priority: med
@@ -35,6 +33,10 @@ week_tasks:
     task: "CEO: set up n8n server on Raspberry Pi 5"
   - priority: high
     task: "CEO: complete Phase 1 credential setup (LinkedIn OAuth, Upload-Post.com, Instagram Business, Firecrawl, Rettiwt-API, Google Sheet)"
+  - priority: high
+    task: "CEO: create @watchfilament on Letterboxd, publish first 3 constellation-derived lists this week"
+  - priority: high
+    task: "CEO: set up UptimeRobot immediately (15 min, free)"
 resources: watchfilament.com · github.com/Sculptron/filament · @watchfilament
 parked: false
 END_DASHBOARD_SNAPSHOT -->
@@ -309,6 +311,7 @@ Appears when `isShared === true` (user arrived via `/c/[id]` URL):
 | 6 — Data Quality & Enrichment | TMDB integration, caching | Pending |
 | 7 — Analytics & Optimization | Plausible/PostHog, event tracking | ✅ Complete |
 | 8 — Creative Director | Thread taxonomy, questionnaire design | ✅ Complete |
+| Brand Strategist | Brand positioning, platform strategy, community entry points, content philosophy | ✅ Complete |
 
 ---
 
@@ -381,6 +384,124 @@ closed.
 
 ---
 
+## Brand Strategy
+
+A full brand strategy was researched and produced from the ground
+up (March 19, 2026). Key decisions are locked below.
+
+### Target Community
+Active film researchers — people who do not rely on Netflix
+recommendations, who use Reddit, Letterboxd, YouTube, and Twitter
+to find films, who describe what they want to watch by feeling
+rather than genre. Total addressable community: ~20-30M globally.
+Filament needs a fraction of this for product-market fit.
+
+Sub-segments in priority order:
+- Arthouse/auteur-first (Letterboxd, r/TrueFilm, r/criterion)
+- Genre + emotional texture (r/MovieSuggestions, Twitter film recs)
+- World cinema enthusiasts
+- Video essay viewers (YouTube-centric, thematic analysis)
+
+### Brand Positioning (Internal Compass)
+Who it's for: viewers who know what feeling they're looking for
+but don't have a tool that speaks that language.
+What it does: maps the emotional and thematic DNA of film —
+you bring a title or a feeling, it returns a visual constellation.
+Why it's different: every other tool maps moods to genres.
+Filament doesn't know what genre is.
+North star test: does this feel like it came from someone who
+genuinely loves cinema, or from a product team?
+
+### Platform Strategy (Locked Decisions)
+
+| Platform | Decision | Role |
+|---|---|---|
+| Twitter/X | INVEST — primary | Audience acquisition, shareable assets, community credibility |
+| Reddit | INVEST — high-leverage | Trust acquisition, highest conversion traffic; permanent human-in-the-loop |
+| Letterboxd | INVEST — immediate | Native presence in most aligned community; weekly lists from constellations |
+| YouTube Shorts | INVEST SELECTIVELY | 1 Short/week from Saturday constellation; full channel deferred |
+| Instagram | INVEST MODESTLY | Reel repurpose from YouTube Short; aesthetic audience |
+| TikTok | DEFER | Mainstream-dominant; revisit at Phase 2 |
+| Newsletter | DEFER | Build audience first; revisit at 1K Pro users or 5K followers |
+
+### Content Pillars (Filament Brand Voice)
+1. The Constellation Reveal — screenshot + searched title +
+   one highlighted thread name + 1-2 connected films
+2. The Thread Question — post a thread name, ask community
+   which films belong on it
+3. The Connection Discovery — "did you know [Film A] and [Film B]
+   share a thread?" then name it
+4. The Vibe Request Answer — Reddit/Twitter only: reply to
+   discovery requests with a real constellation URL
+5. The Meta-Observation — genuine cinema observation with no
+   product mention; builds credibility
+
+### What Filament's Content Must Never Do
+- Explain the product in copy (the experience does the explaining)
+- Use the word "algorithm" (it is the enemy brand)
+- Post generic film content ("what's your favorite Kubrick film?")
+- Use marketing language: "innovative," "AI-powered," "discover,"
+  "unlock," "seamless," "experience"
+- Post without a visual (standing rule — screen recording or
+  screenshot always required)
+- Treat the product as the hero (the films are the heroes;
+  Filament is the map)
+
+### Competitive Landscape
+No direct functional equivalent exists. All "mood-based" discovery
+tools are genre filters with nicer UI. None generate a visual
+interactive output, produce cinephile-register thread names,
+create a shareable artifact, or allow starting from a loved film.
+The competitive risk is invisibility, not displacement.
+
+### Letterboxd Presence (Immediate CEO Action)
+Letterboxd users already think in Filament's language — they name
+lists the way Filament names threads. This is the single most
+important brand action right now.
+
+What to do:
+1. Create @watchfilament account on Letterboxd
+2. Pull top 3 constellations from Supabase
+3. For each: create a list using the films as entries, the
+   strongest thread name as the list title, 3-4 sentence
+   description in Filament's voice, include shareable URL
+4. Publish all three in the first session (45-60 min total)
+5. Add 1 new list per week thereafter (derived from Saturday
+   automation's top constellation)
+
+### 90-Day Brand-Building Trajectory
+
+Days 1-30 (Trust and Presence):
+- Post 3-4x/week on Twitter using Thread Question and Connection
+  Discovery pillars
+- 5-10 daily genuine Film Twitter engagements
+- Publish first 3 Letterboxd lists; add 1/week
+- Reply in r/MovieSuggestions 3x/week with constellation URLs
+- Target: 150+ Twitter followers, 5+ Letterboxd list saves,
+  1 Reddit reply reaching top 10 comments
+
+Days 31-60 (Seeding Shareable Moments):
+- Identify highest-recognition constellation from Supabase data
+- Build a Twitter thread around it (4-5 tweets)
+- Begin YouTube Shorts (1/week, constellation reveals)
+- First outreach to 2-3 video essay creators (genuine, no ask)
+- Target: 1 tweet breaking 500 impressions, 1 constellation
+  URL getting 100+ unique visits
+
+Days 61-90 (Community Integration):
+- Begin r/TrueFilm original content posts (1 every 2-3 weeks)
+- Track which constellation types generate most engagement
+- Target: 300+ Twitter followers, 3+ organic Filament mentions
+  from non-Filament accounts, 1 Reddit post reaching 50+ upvotes
+
+### Key Insight: Thread Names as Marketing Asset
+Thread names like "grief wearing the mask of folklore" are
+quotable and travel without the product. The quality and
+distinctiveness of thread names is simultaneously a product
+decision and a marketing decision.
+
+---
+
 ## Execution Order & Current Status
 
 | Step | Agent | What Gets Built | Status |
@@ -394,6 +515,7 @@ closed.
 | 5a | Infrastructure Architect + Product Engineer | Supabase Auth (Google + Email/Password), profiles table, hybrid rate limiting | ✅ COMPLETED Mar 11 |
 | 5b | Monetization | Stripe live, checkout, webhook, rate limit 5→3, Pro badge | ✅ COMPLETED Mar 11 |
 | 6a | Social Media Automation Architect | Weekly cadence + automation architecture designed | ✅ COMPLETED Mar 14 |
+| 6d | Brand Strategist | Filament brand strategy — audience research, platform decisions, content pillars, 90-day brand-building trajectory | ✅ COMPLETED Mar 19 |
 | 6b | Claude Code (Session A) | n8n Saturday factory: Supabase query, Playwright screenshots, Claude copy, Twitter/Reddit monitoring, Monday Brief email | ⏳ Blocked — n8n server + Phase 1 credentials needed first |
 | 6c | Claude Code (Session B) | Distribution layer: Browser-use Twitter compose, LinkedIn API, Upload-Post.com, Sunday digest, Google Sheet feedback loop | ⏳ After Session A |
 | 7 | Analytics | Plausible/PostHog, event tracking | ✅ COMPLETED Mar 13 |
@@ -436,6 +558,7 @@ closed.
 - ✅ **Warm-up posts 4 and 5 posted** — All 5 warm-up posts now live on @watchfilament. Film Twitter engagement rhythm begun (Day 4+). Tier 1 accounts followed (Mar 13–14, 2026)
 - ✅ **Social media weekly cadence designed** — Full weekly content and posting cadence locked: Monday creation block (35 min), Wednesday distribution block (20 min), Sunday review block (10 min). Total ~65 min/week (Mar 14, 2026)
 - ✅ **Social media automation architecture locked** — 5-phase build plan designed. Tool stack: n8n self-hosted on Raspberry Pi 5, Playwright MCP screenshots, Browser-use Twitter compose pre-fill, LinkedIn API, Upload-Post.com, Firecrawl fallback, Google Sheet feedback loop. Total cost ~$2/month. Architecture approved by CEO after 6 iteration rounds (Mar 14, 2026)
+- ✅ **Filament brand strategy completed** — Full brand strategy produced from ground up. Key outputs: audience research (active film researchers, ~20-30M globally across Reddit, Letterboxd, YouTube, Twitter), competitive analysis (no direct functional equivalent exists), platform strategy locked (Twitter primary, Reddit high-leverage, Letterboxd immediate priority, YouTube Shorts selective, Instagram secondary, TikTok deferred), brand positioning statement written, content pillars defined (5 pillars), 90-day brand-building trajectory established. Critical new action: Letterboxd presence identified as highest-leverage immediate brand action (Mar 19, 2026)
 
 ---
 
@@ -445,8 +568,9 @@ closed.
 - [ ] Apply to Mubi affiliate program
 - [ ] Apply to Amazon Associates
 - ✅ @watchfilament account live — handle claimed, profile complete, warm-up in progress
-- [ ] Set up UptimeRobot (free, no code — ping watchfilament.com every 5 min)
+- [ ] Set up UptimeRobot (free, no code — ping watchfilament.com every 5 min) — OVERDUE, do immediately
 - [ ] CEO: upgrade contact email to hello@watchfilament.com before launch push
+- [ ] Create @watchfilament on Letterboxd and publish first 3 weekly lists (derived from top Supabase constellations — use thread name as list title, include shareable URL in description). HIGHEST PRIORITY brand action this week.
 
 **Next agent sessions (in order):**
 - [ ] Social Media Agent — tweet templates, Reddit playbook, launch content
